@@ -1,0 +1,19 @@
+{
+    "name": "bbioon/product-research",
+    "description": "WooCommerce Product Competitive Intelligence Plugin - AI-powered competitor analysis",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": "^8.1",
+        "neuron-core/neuron-ai": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "ProductResearch\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}

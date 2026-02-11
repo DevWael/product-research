@@ -1,0 +1,10 @@
+/**
+ * Product Research Settings page styles
+ */
+.pr-settings .form-table th {
+    width: 220px;
+}
+
+.pr-settings .regular-text {
+    width: 400px;
+}
