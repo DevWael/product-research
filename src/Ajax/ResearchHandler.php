@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace ProductResearch\Ajax;
 
-use NeuronAI\Workflow\StartEvent;
-use ProductResearch\AI\Workflow\ProductResearchWorkflow;
+use NeuronAI\Chat\Messages\UserMessage;
+use ProductResearch\AI\Agent\ProductAnalysisAgent;
+use ProductResearch\AI\Schema\CompetitorProfile;
 use ProductResearch\API\ContentSanitizer;
 use ProductResearch\API\TavilyClient;
 use ProductResearch\Cache\CacheManager;
@@ -19,6 +20,10 @@ use ProductResearch\Security\Logger;
  * Provides endpoints for starting research, confirming URLs,
  * polling status, and retrieving reports.
  * Includes security guards: concurrent lock, cooldown, credit budget.
+ *
+ * Uses direct service calls instead of the Neuron Workflow engine
+ * since we need an HTTP request/response boundary between
+ * search (preview) and extract+analyze steps.
  */
 final class ResearchHandler
 {
@@ -43,7 +48,7 @@ final class ResearchHandler
     }
 
     /**
-     * Start research: create report, run search, return preview data.
+     * Step 1: Run Tavily search and return URL preview for user confirmation.
      */
     public function handleStartResearch(): void
     {
@@ -92,20 +97,31 @@ final class ResearchHandler
         }
 
         try {
-            $workflow = $this->createWorkflow();
+            // Build search query from product data
+            $query = $this->buildSearchQuery($product);
 
-            $state = new \NeuronAI\Workflow\WorkflowState();
-            $state->set('report_id', $reportId);
-            $state->set('product_id', $productId);
-            $state->set('product_title', $product->get_name());
-            $state->set('product_category', $this->getProductCategory($product));
-            $state->set('product_brand', $this->getProductBrand($product));
+            // Check cache first
+            $cacheKey = $this->cache->generateKey($productId, 'search', $query);
+            $results  = $this->cache->get($cacheKey);
 
-            // Run search node only (manually invoke first node)
-            $searchNode  = $workflow->nodes()[0] ?? null;
-            $searchEvent = $searchNode(new StartEvent(), $state);
+            if (! is_array($results)) {
+                $results = $this->tavily->search($query);
+                $this->cache->set($cacheKey, $results);
+            }
 
-            // Update status to previewing
+            // Extract URLs from results
+            $searchResults = $results['results'] ?? [];
+            $urls = array_values(array_filter(array_map(
+                static fn(array $r): string => $r['url'] ?? '',
+                $searchResults
+            )));
+
+            // Save search data to report
+            $this->reports->update($reportId, [
+                ReportPostType::META_SEARCH_QUERY   => $query,
+                ReportPostType::META_COMPETITOR_DATA => $searchResults,
+            ]);
+
             $this->reports->updateStatus(
                 $reportId,
                 ReportPostType::STATUS_PREVIEWING,
@@ -114,24 +130,24 @@ final class ResearchHandler
 
             wp_send_json_success([
                 'report_id'      => $reportId,
-                'search_results' => $searchEvent->searchResults,
-                'urls'           => $searchEvent->urls,
-                'query'          => $searchEvent->query,
+                'search_results' => $searchResults,
+                'urls'           => $urls,
+                'query'          => $query,
                 'status'         => ReportPostType::STATUS_PREVIEWING,
             ]);
         } catch (\Throwable $e) {
             $this->logger->log(sprintf('Start research failed: %s', $e->getMessage()));
-
             $this->reports->updateStatus($reportId, ReportPostType::STATUS_FAILED, $e->getMessage());
 
             wp_send_json_error([
                 'message' => __('Search failed. Please check your API configuration.', 'product-research'),
+                'debug'   => defined('WP_DEBUG') && WP_DEBUG ? $e->getMessage() : null,
             ], 500);
         }
     }
 
     /**
-     * Confirm selected URLs and continue workflow (Extract → Analyze → Report).
+     * Step 2: Extract content from confirmed URLs, run AI analysis, save report.
      */
     public function handleConfirmUrls(): void
     {
@@ -151,51 +167,112 @@ final class ResearchHandler
         ]);
 
         try {
-            $workflow = $this->createWorkflow();
-
-            $state = new \NeuronAI\Workflow\WorkflowState();
-            $state->set('report_id', $reportId);
-            $state->set('product_id', $report['product_id']);
-            $state->set('selected_urls', $urls);
-
-            // Build search event from stored data
-            $searchResults = $report['competitor_data'] ?? [];
-            $searchEvent   = new \ProductResearch\AI\Workflow\Events\SearchCompletedEvent(
-                $searchResults,
-                $urls,
-                $report['search_query'] ?? ''
+            // --- Extract ---
+            $this->reports->updateStatus(
+                $reportId,
+                ReportPostType::STATUS_EXTRACTING,
+                __('Extracting competitor data...', 'product-research')
             );
 
-            // Run extract → analyze → report nodes
-            $nodes = $workflow->nodes();
+            $extractedContent = [];
+            $failedUrls       = [];
 
-            $extractEvent  = ($nodes[1])($searchEvent, $state);
-            $analyzeEvent  = ($nodes[2])($extractEvent, $state);
-            $stopEvent     = ($nodes[3])($analyzeEvent, $state);
+            // Tavily extract() takes an array of URLs and returns batch results
+            $extractResponse = $this->tavily->extract($urls);
+            $extractResults  = $extractResponse['results'] ?? [];
+
+            // Map extracted content by URL
+            foreach ($extractResults as $result) {
+                $resultUrl  = $result['url'] ?? '';
+                $rawContent = $result['raw_content'] ?? '';
+
+                if ($rawContent !== '') {
+                    $sanitized = $this->sanitizer->sanitize($rawContent);
+
+                    if ($sanitized !== '') {
+                        $extractedContent[] = [
+                            'url'     => $resultUrl,
+                            'content' => $sanitized,
+                        ];
+                    } else {
+                        $failedUrls[] = $resultUrl;
+                    }
+                } else {
+                    $failedUrls[] = $resultUrl;
+                }
+            }
+
+            // Check for URLs that weren't returned in extract results
+            $extractedUrls = array_column($extractResults, 'url');
+            foreach ($urls as $url) {
+                if (! in_array($url, $extractedUrls, true) && ! in_array($url, $failedUrls, true)) {
+                    $failedUrls[] = $url;
+                }
+            }
+
+            if (empty($extractedContent)) {
+                throw new \RuntimeException('No competitor data could be extracted from the selected URLs.');
+            }
+
+            // --- Analyze ---
+            $this->reports->updateStatus(
+                $reportId,
+                ReportPostType::STATUS_ANALYZING,
+                __('Analyzing competitor data...', 'product-research')
+            );
+
+            $profiles = [];
+            $agent    = ProductAnalysisAgent::make();
+
+            foreach ($extractedContent as $item) {
+                try {
+                    /** @var CompetitorProfile $profile */
+                    $profile    = $agent->structured(
+                        new UserMessage($item['content']),
+                        CompetitorProfile::class
+                    );
+                    $profiles[] = $profile->toArray();
+                } catch (\Throwable $e) {
+                    $this->logger->log(sprintf('AI analysis failed for %s: %s', $item['url'], $e->getMessage()));
+                    $failedUrls[] = $item['url'];
+                }
+            }
+
+            if (empty($profiles)) {
+                throw new \RuntimeException('AI analysis returned no valid results.');
+            }
+
+            // --- Save Report ---
+            $this->reports->update($reportId, [
+                ReportPostType::META_ANALYSIS_RESULT => $profiles,
+                ReportPostType::META_ERROR_DETAILS   => ! empty($failedUrls)
+                    ? ['failed_urls' => $failedUrls]
+                    : null,
+            ]);
+
+            $this->reports->updateStatus(
+                $reportId,
+                ReportPostType::STATUS_COMPLETE,
+                __('Analysis complete', 'product-research')
+            );
 
             // Update cooldown timestamp
             update_post_meta($report['product_id'], '_pr_last_analysis', time());
 
-            $finalReport = $this->reports->findById($reportId);
-
             wp_send_json_success([
-                'report_id' => $reportId,
-                'status'    => ReportPostType::STATUS_COMPLETE,
-                'report'    => $finalReport['analysis_result'] ?? [],
+                'report_id'   => $reportId,
+                'status'      => ReportPostType::STATUS_COMPLETE,
+                'report'      => $profiles,
+                'failed_urls' => $failedUrls,
             ]);
         } catch (\Throwable $e) {
             $this->logger->log(sprintf('Analysis failed for report %d: %s', $reportId, $e->getMessage()));
 
             $this->reports->updateStatus($reportId, ReportPostType::STATUS_FAILED, $e->getMessage());
-            $this->reports->update($reportId, [
-                ReportPostType::META_ERROR_DETAILS => [
-                    'message' => __('Analysis failed. Some competitors may have been unreachable.', 'product-research'),
-                    'code'    => 'analysis_error',
-                ],
-            ]);
 
             wp_send_json_error([
                 'message' => __('Analysis failed. Please try again.', 'product-research'),
+                'debug'   => defined('WP_DEBUG') && WP_DEBUG ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -241,6 +318,36 @@ final class ResearchHandler
             'report'    => $report['analysis_result'] ?? [],
             'created'   => $report['created_at'],
         ]);
+    }
+
+    /**
+     * Build a search query from product data.
+     */
+    private function buildSearchQuery(\WC_Product $product): string
+    {
+        $parts = [];
+
+        $name = $product->get_name();
+        if ($name !== '') {
+            $parts[] = sprintf('"%s"', $name);
+        }
+
+        $categoryIds = $product->get_category_ids();
+        if (! empty($categoryIds)) {
+            $term = get_term($categoryIds[0], 'product_cat');
+            if ($term && ! is_wp_error($term)) {
+                $parts[] = $term->name;
+            }
+        }
+
+        $brand = $product->get_attribute('brand');
+        if ($brand !== '') {
+            $parts[] = $brand;
+        }
+
+        $parts[] = 'price buy';
+
+        return implode(' ', $parts);
     }
 
     /**
@@ -338,55 +445,5 @@ final class ResearchHandler
         }
 
         return $this->tavily->getCreditsUsedToday() < $budget;
-    }
-
-    /**
-     * Get primary product category name.
-     */
-    private function getProductCategory(\WC_Product $product): string
-    {
-        $categoryIds = $product->get_category_ids();
-
-        if (empty($categoryIds)) {
-            return '';
-        }
-
-        $term = get_term($categoryIds[0], 'product_cat');
-
-        return ($term && ! is_wp_error($term)) ? $term->name : '';
-    }
-
-    /**
-     * Get product brand (from common brand attribute or taxonomy).
-     */
-    private function getProductBrand(\WC_Product $product): string
-    {
-        // Check common brand attribute
-        $brand = $product->get_attribute('brand');
-        if ($brand !== '') {
-            return $brand;
-        }
-
-        // Check pa_brand taxonomy
-        $terms = wp_get_post_terms($product->get_id(), 'pa_brand');
-        if (! is_wp_error($terms) && ! empty($terms)) {
-            return $terms[0]->name;
-        }
-
-        return '';
-    }
-
-    /**
-     * Create the workflow instance with dependencies.
-     */
-    private function createWorkflow(): ProductResearchWorkflow
-    {
-        return new ProductResearchWorkflow(
-            $this->tavily,
-            $this->sanitizer,
-            $this->cache,
-            $this->reports,
-            $this->logger
-        );
     }
 }
