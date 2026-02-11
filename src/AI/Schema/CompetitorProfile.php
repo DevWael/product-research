@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace ProductResearch\AI\Schema;
 
 use NeuronAI\StructuredOutput\SchemaProperty;
-use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
-use NeuronAI\StructuredOutput\Validation\Rules\GreaterThan;
 use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
-use NeuronAI\StructuredOutput\Validation\Rules\Url;
 
 /**
  * Structured output schema for a competitor product profile.
@@ -23,9 +20,8 @@ final class CompetitorProfile
     #[NotBlank]
     public string $name = '';
 
-    #[SchemaProperty(description: 'Current or sale price', required: true)]
-    #[GreaterThan(0)]
-    public float $currentPrice = 0.0;
+    #[SchemaProperty(description: 'Current or sale price', required: false)]
+    public ?float $currentPrice = null;
 
     #[SchemaProperty(description: 'Original price before discount', required: false)]
     public ?float $originalPrice = null;
@@ -34,9 +30,8 @@ final class CompetitorProfile
     #[NotBlank]
     public string $currency = '';
 
-    #[SchemaProperty(description: 'Source product URL', required: true)]
-    #[Url]
-    public string $url = '';
+    #[SchemaProperty(description: 'Source product URL', required: false)]
+    public ?string $url = null;
 
     #[SchemaProperty(description: 'Availability: In stock, Out of stock, or Pre-order', required: false)]
     public ?string $availability = null;
@@ -51,7 +46,7 @@ final class CompetitorProfile
     public ?float $rating = null;
 
     /** @var ProductVariation[] */
-    #[ArrayOf(ProductVariation::class)]
+    #[SchemaProperty(description: 'Product variations (size, color, etc.)', required: false)]
     public array $variations = [];
 
     /** @var string[] */
@@ -80,7 +75,12 @@ final class CompetitorProfile
             'seller_name'   => $this->sellerName,
             'rating'        => $this->rating,
             'variations'    => array_map(
-                static fn(ProductVariation $v): array => $v->toArray(),
+                static function (mixed $v): array {
+                    if ($v instanceof ProductVariation) {
+                        return $v->toArray();
+                    }
+                    return (array) $v;
+                },
                 $this->variations
             ),
             'features'      => $this->features,

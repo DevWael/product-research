@@ -156,6 +156,12 @@ final class ResearchHandler
         $reportId = $this->getReportId();
         $urls     = $this->getSelectedUrls();
 
+        if (empty($urls)) {
+            wp_send_json_error([
+                'message' => __('No valid URLs selected. Please select at least one competitor.', 'product-research'),
+            ], 400);
+        }
+
         $report = $this->reports->findById($reportId);
         if ($report === null) {
             wp_send_json_error(['message' => __('Report not found.', 'product-research')], 404);
@@ -227,10 +233,16 @@ final class ResearchHandler
             foreach ($extractedContent as $item) {
                 try {
                     /** @var CompetitorProfile $profile */
-                    $profile    = $agent->structured(
+                    $profile = $agent->structured(
                         new UserMessage($item['content']),
                         CompetitorProfile::class
                     );
+
+                    // Ensure the source URL is always set (AI may not extract it)
+                    if (empty($profile->url)) {
+                        $profile->url = $item['url'];
+                    }
+
                     $profiles[] = $profile->toArray();
                 } catch (\Throwable $e) {
                     $this->logger->log(sprintf('AI analysis failed for %s: %s', $item['url'], $e->getMessage()));
@@ -401,13 +413,28 @@ final class ResearchHandler
      */
     private function getSelectedUrls(): array
     {
-        $urls = $_POST['selected_urls'] ?? [];
+        $raw = $_POST['selected_urls'] ?? [];
 
-        if (! is_array($urls)) {
-            $urls = json_decode(sanitize_text_field((string) $urls), true) ?? [];
+        $this->logger->log(sprintf(
+            'getSelectedUrls raw input type=%s value=%s',
+            gettype($raw),
+            is_string($raw) ? substr($raw, 0, 500) : 'array(' . count($raw) . ')'
+        ));
+
+        if (is_array($raw)) {
+            $urls = $raw;
+        } else {
+            // Frontend sends JSON.stringify(urls) — decode the JSON string
+            $unslashed = wp_unslash((string) $raw);
+            $urls      = json_decode($unslashed, true);
+
+            if (! is_array($urls)) {
+                $this->logger->log(sprintf('json_decode failed for: %s', substr($unslashed, 0, 200)));
+                $urls = [];
+            }
         }
 
-        return array_map('esc_url_raw', array_filter($urls));
+        return array_values(array_filter(array_map('esc_url_raw', $urls)));
     }
 
     /**

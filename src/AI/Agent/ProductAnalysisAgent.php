@@ -29,7 +29,9 @@ final class ProductAnalysisAgent extends Agent
 
         $apiKey   = $encryption->decrypt(get_option('pr_zai_api_key', ''));
         $model    = get_option('pr_zai_model', 'glm-4.7');
-        $endpoint = get_option('pr_zai_endpoint', 'https://api.z.ai/api/coding/paas/v4/chat/completions');
+        // Neuron's OpenAILike provider appends /chat/completions automatically.
+        // The base URI must NOT include that path segment.
+        $endpoint = get_option('pr_zai_endpoint', 'https://api.z.ai/api/coding/paas/v4');
 
         return new OpenAILike(
             baseUri: $endpoint,

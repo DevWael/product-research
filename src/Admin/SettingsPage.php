@@ -92,7 +92,7 @@ final class SettingsPage
             'pr_zai_endpoint',
             __('Z.AI Endpoint URL', 'product-research'),
             self::SECTION_API,
-            'https://api.z.ai/api/coding/paas/v4/chat/completions'
+            'https://api.z.ai/api/coding/paas/v4'
         );
         $this->addEncryptedField('pr_tavily_api_key', __('Tavily API Key', 'product-research'), self::SECTION_API);
     }

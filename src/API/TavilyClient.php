@@ -154,8 +154,14 @@ final class TavilyClient
 
             if ($code !== 200) {
                 $errorMsg = $data['detail'] ?? $data['error'] ?? 'Unknown error';
+
+                // Tavily returns {"detail": {"error": "..."}} for auth errors
+                if (is_array($errorMsg)) {
+                    $errorMsg = $errorMsg['error'] ?? $errorMsg['message'] ?? wp_json_encode($errorMsg);
+                }
+
                 throw new \RuntimeException(
-                    sprintf('Tavily API error: %s', sanitize_text_field((string) $errorMsg))
+                    sprintf('Tavily API error (HTTP %d): %s', $code, sanitize_text_field((string) $errorMsg))
                 );
             }
 
