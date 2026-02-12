@@ -168,6 +168,15 @@ final class SettingsPage
         $this->addNumberField('pr_max_competitors', __('Max Competitors to Analyze', 'product-research'), self::SECTION_CFG, 5, 1, 10);
         $this->addNumberField('pr_token_budget', __('Token Budget per Competitor', 'product-research'), self::SECTION_CFG, 4000, 500, 16000);
         $this->addNumberField('pr_cache_ttl', __('Cache TTL (hours)', 'product-research'), self::SECTION_CFG, 24, 1, 168);
+
+        $this->addTextareaField(
+            'pr_exclude_domains',
+            __('Exclude Domains', 'product-research'),
+            self::SECTION_CFG,
+            implode("\n", \ProductResearch\API\TavilyClient::DEFAULT_EXCLUDE_DOMAINS)
+        );
+
+        $this->addCheckboxField('pr_auto_recommendations', __('Auto-generate AI Recommendations', 'product-research'), self::SECTION_CFG, false);
     }
 
     /**
@@ -322,6 +331,36 @@ final class SettingsPage
                 '<input type="checkbox" id="%1$s" name="%1$s" value="1" %2$s />',
                 esc_attr($id),
                 checked($checked, true, false)
+            );
+        }, self::PAGE_SLUG, $section);
+    }
+
+    /**
+     * Add a textarea field (one value per line, e.g. domain list).
+     */
+    private function addTextareaField(string $id, string $label, string $section, string $default = ''): void
+    {
+        register_setting(self::PAGE_SLUG, $id, [
+            'type'              => 'string',
+            'sanitize_callback' => static function ($value) use ($default): string {
+                if (! is_string($value) || trim($value) === '') {
+                    return $default;
+                }
+                $lines = array_filter(array_map('trim', explode("\n", $value)));
+                $lines = array_map('sanitize_text_field', $lines);
+                return implode("\n", $lines);
+            },
+            'default'           => $default,
+        ]);
+
+        add_settings_field($id, $label, static function () use ($id, $default): void {
+            $value = get_option($id, $default);
+            printf(
+                '<textarea id="%1$s" name="%1$s" rows="6" cols="50" class="large-text code">%2$s</textarea>'
+                . '<p class="description">%3$s</p>',
+                esc_attr($id),
+                esc_textarea((string) $value),
+                esc_html__('One domain per line (e.g. amazon.com)', 'product-research')
             );
         }, self::PAGE_SLUG, $section);
     }

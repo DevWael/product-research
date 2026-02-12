@@ -222,8 +222,21 @@ final class ReportRepository
             'progress_message' => get_post_meta($post->ID, ReportPostType::META_PROGRESS_MESSAGE, true),
             'selected_urls'    => $this->getJsonMeta($post->ID, ReportPostType::META_SELECTED_URLS),
             'error_details'    => $this->getJsonMeta($post->ID, ReportPostType::META_ERROR_DETAILS),
+            'recommendations'  => $this->getRecommendations($post->ID),
             'created_at'       => $post->post_date,
         ];
+    }
+
+    /**
+     * Get cached recommendations for a report.
+     *
+     * @return array<int, array<string, string>>
+     */
+    private function getRecommendations(int $postId): array
+    {
+        $recs = get_post_meta($postId, '_pr_recommendations', true);
+
+        return is_array($recs) ? $recs : [];
     }
 
     /**

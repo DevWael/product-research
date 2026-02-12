@@ -6,6 +6,7 @@ namespace ProductResearch;
 
 use ProductResearch\Admin\Assets;
 use ProductResearch\Admin\MetaBox;
+use ProductResearch\Admin\ProductListColumns;
 use ProductResearch\Admin\SettingsPage;
 use ProductResearch\Ajax\ResearchHandler;
 use ProductResearch\API\ContentSanitizer;
@@ -117,6 +118,8 @@ final class Container
                 plugin_dir_path(dirname(__DIR__) . '/product-research.php')
             );
         });
+
+        $this->set(ProductListColumns::class, static fn(): ProductListColumns => new ProductListColumns());
 
         $this->set(ResearchHandler::class, function (self $c): ResearchHandler {
             return new ResearchHandler(

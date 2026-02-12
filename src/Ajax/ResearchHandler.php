@@ -6,7 +6,9 @@ namespace ProductResearch\Ajax;
 
 use NeuronAI\Chat\Messages\UserMessage;
 use ProductResearch\AI\Agent\ProductAnalysisAgent;
+use ProductResearch\AI\Agent\RecommendationAgent;
 use ProductResearch\AI\Schema\CompetitorProfile;
+use ProductResearch\AI\Schema\RecommendationOutput;
 use ProductResearch\API\ContentSanitizer;
 use ProductResearch\API\TavilyClient;
 use ProductResearch\Cache\CacheManager;
@@ -105,7 +107,15 @@ final class ResearchHandler
             $results  = $this->cache->get($cacheKey);
 
             if (! is_array($results)) {
-                $results = $this->tavily->search($query);
+                $excludeRaw = get_option(
+                    'pr_exclude_domains',
+                    implode("\n", \ProductResearch\API\TavilyClient::DEFAULT_EXCLUDE_DOMAINS)
+                );
+                $excludeDomains = array_filter(array_map('trim', explode("\n", (string) $excludeRaw)));
+
+                $results = $this->tavily->search($query, [
+                    'exclude_domains' => $excludeDomains,
+                ]);
                 $this->cache->set($cacheKey, $results);
             }
 
@@ -453,11 +463,42 @@ final class ResearchHandler
         // Update cooldown timestamp
         update_post_meta($report['product_id'], '_pr_last_analysis', time());
 
+        // Store badge data for product list column
+        $product = wc_get_product($report['product_id']);
+        $productPrice = $product ? (float) $product->get_price() : 0.0;
+        update_post_meta($report['product_id'], '_pr_badge_data', [
+            'competitor_count' => count($profiles),
+            'price_position'  => $this->calculatePricePosition($productPrice, $prices),
+        ]);
+
+        // Auto-generate recommendations if enabled
+        $recommendations = [];
+        if (get_option('pr_auto_recommendations', false)) {
+            try {
+                $agent  = RecommendationAgent::make();
+                $prompt = sprintf(
+                    "Product: %s\nPrice: %s\n\nCompetitor Data:\n%s",
+                    $product ? $product->get_name() : 'Unknown',
+                    $product ? $product->get_price() : 'N/A',
+                    wp_json_encode($structuredReport, JSON_PRETTY_PRINT)
+                );
+                $output = $agent->structured(new UserMessage($prompt), RecommendationOutput::class);
+                $recommendations = $output->toArray();
+                update_post_meta($reportId, '_pr_recommendations', $recommendations);
+            } catch (\Throwable $e) {
+                $this->logger->log(sprintf('Auto-recommendations failed for report %d: %s', $reportId, $e->getMessage()), 'warning');
+            }
+        }
+
+        // Clean up old recommendation cache (previously stored on the product, now on the report)
+        delete_post_meta($report['product_id'], '_pr_recommendations');
+
         wp_send_json_success([
-            'report_id'   => $reportId,
-            'status'      => ReportPostType::STATUS_COMPLETE,
-            'report'      => $structuredReport,
-            'failed_urls' => $report['error_details']['failed_urls'] ?? [],
+            'report_id'       => $reportId,
+            'status'          => ReportPostType::STATUS_COMPLETE,
+            'report'          => $structuredReport,
+            'recommendations' => $recommendations,
+            'failed_urls'     => $report['error_details']['failed_urls'] ?? [],
         ]);
     }
 
@@ -533,12 +574,65 @@ final class ResearchHandler
             wp_send_json_error(['message' => __('Report not found.', 'product-research')], 404);
         }
 
+        $recommendations = get_post_meta($reportId, '_pr_recommendations', true);
+
         wp_send_json_success([
-            'report_id' => $reportId,
-            'status'    => $report['status'],
-            'report'    => $report['analysis_result'] ?? [],
-            'created'   => $report['created_at'],
+            'report_id'       => $reportId,
+            'status'          => $report['status'],
+            'report'          => $report['analysis_result'] ?? [],
+            'recommendations' => is_array($recommendations) ? $recommendations : [],
+            'created'         => $report['created_at'],
         ]);
+    }
+
+    /**
+     * Generate on-demand AI recommendations for a completed report.
+     */
+    public function handleGetRecommendations(): void
+    {
+        $this->verifyRequest();
+
+        $reportId = $this->getReportId();
+        $report   = $this->reports->findById($reportId);
+
+        if ($report === null) {
+            wp_send_json_error(['message' => __('Report not found.', 'product-research')], 404);
+        }
+
+        if ($report['status'] !== ReportPostType::STATUS_COMPLETE) {
+            wp_send_json_error(['message' => __('Report is not complete.', 'product-research')], 400);
+        }
+
+        // Return cached recommendations if available
+        $cached = get_post_meta($reportId, '_pr_recommendations', true);
+        if (is_array($cached) && ! empty($cached)) {
+            wp_send_json_success(['recommendations' => $cached]);
+        }
+
+        $product = wc_get_product($report['product_id']);
+        if (! $product) {
+            wp_send_json_error(['message' => __('Product not found.', 'product-research')], 404);
+        }
+
+        try {
+            $agent  = RecommendationAgent::make();
+            $prompt = sprintf(
+                "Product: %s\nPrice: %s\n\nCompetitor Data:\n%s",
+                $product->get_name(),
+                $product->get_price(),
+                wp_json_encode($report['analysis_result'] ?? [], JSON_PRETTY_PRINT)
+            );
+            $output = $agent->structured(new UserMessage($prompt), RecommendationOutput::class);
+            $recommendations = $output->toArray();
+
+            // Cache for future requests
+            update_post_meta($reportId, '_pr_recommendations', $recommendations);
+
+            wp_send_json_success(['recommendations' => $recommendations]);
+        } catch (\Throwable $e) {
+            $this->logger->log(sprintf('Recommendations failed for report %d: %s', $reportId, $e->getMessage()));
+            wp_send_json_error(['message' => __('Failed to generate recommendations. Please try again.', 'product-research')], 500);
+        }
     }
 
     /**
@@ -566,7 +660,21 @@ final class ResearchHandler
             $parts[] = $brand;
         }
 
-        $parts[] = 'price buy';
+        $sku = $product->get_sku();
+        if ($sku !== '') {
+            $parts[] = $sku;
+        }
+
+        $tagIds = $product->get_tag_ids();
+        if (! empty($tagIds)) {
+            $tags = array_map(static function (int $id): string {
+                $term = get_term($id, 'product_tag');
+                return ($term && ! is_wp_error($term)) ? $term->name : '';
+            }, array_slice($tagIds, 0, 3));
+            $parts = array_merge($parts, array_filter($tags));
+        }
+
+        $parts[] = '"add to cart" OR "buy now" OR "shop" price';
 
         return implode(' ', $parts);
     }
@@ -684,11 +792,31 @@ final class ResearchHandler
     }
 
     /**
-     * Generate key findings from analyzed profiles.
+     * Determine price position relative to competitor prices.
      *
-     * @param array<int, array<string, mixed>> $profiles
-     * @return array<string>
+     * @param float $productPrice Our product's price.
+     * @param float[] $competitorPrices Array of competitor prices.
+     * @return string 'below', 'at', or 'above'
      */
+    private function calculatePricePosition(float $productPrice, array $competitorPrices): string
+    {
+        if (empty($competitorPrices) || $productPrice <= 0) {
+            return 'at';
+        }
+
+        $avg = array_sum($competitorPrices) / count($competitorPrices);
+
+        if ($productPrice < $avg * 0.9) {
+            return 'below';
+        }
+
+        if ($productPrice > $avg * 1.1) {
+            return 'above';
+        }
+
+        return 'at';
+    }
+
     private function buildKeyFindings(array $profiles): array
     {
         $findings = [];

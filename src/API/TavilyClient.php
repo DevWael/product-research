@@ -19,6 +19,27 @@ final class TavilyClient
     private const EXTRACT_URL = 'https://api.tavily.com/extract';
     private const MAX_RETRIES = 3;
 
+    /** @var string[] Default domains to exclude from search results. */
+    public const DEFAULT_EXCLUDE_DOMAINS = [
+        'amazon.com',
+        'ebay.com',
+        'walmart.com',
+        'aliexpress.com',
+        'alibaba.com',
+        'temu.com',
+        'wish.com',
+        'target.com',
+        'bestbuy.com',
+        'costco.com',
+        'etsy.com',
+        'facebook.com',
+        'instagram.com',
+        'twitter.com',
+        'pinterest.com',
+        'youtube.com',
+        'reddit.com',
+    ];
+
     private Encryption $encryption;
     private CacheManager $cache;
     private Logger $logger;

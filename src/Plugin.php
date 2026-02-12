@@ -6,6 +6,7 @@ namespace ProductResearch;
 
 use ProductResearch\Admin\Assets;
 use ProductResearch\Admin\MetaBox;
+use ProductResearch\Admin\ProductListColumns;
 use ProductResearch\Admin\SettingsPage;
 use ProductResearch\Ajax\ResearchHandler;
 use ProductResearch\Export\ReportExporter;
@@ -60,6 +61,7 @@ final class Plugin
 
         add_action('admin_init', function (): void {
             $this->container->get(SettingsPage::class)->registerSettings();
+            $this->container->get(ProductListColumns::class)->register();
         });
 
         add_action('add_meta_boxes', function (): void {
@@ -69,6 +71,7 @@ final class Plugin
         add_action('admin_enqueue_scripts', function (string $hook): void {
             $this->container->get(Assets::class)->enqueue($hook);
             $this->container->get(Assets::class)->enqueueSettings($hook);
+            $this->container->get(ProductListColumns::class)->enqueueAssets();
         });
     }
 
@@ -78,13 +81,14 @@ final class Plugin
     private function registerAjaxHandlers(): void
     {
         $ajaxActions = [
-            'pr_start_research'  => 'handleStartResearch',
-            'pr_confirm_urls'    => 'handleConfirmUrls',
-            'pr_analyze_url'     => 'handleAnalyzeUrl',
-            'pr_finalize_report' => 'handleFinalizeReport',
-            'pr_cancel_report'   => 'handleCancelReport',
-            'pr_get_status'      => 'handleGetStatus',
-            'pr_get_report'      => 'handleGetReport',
+            'pr_start_research'      => 'handleStartResearch',
+            'pr_confirm_urls'        => 'handleConfirmUrls',
+            'pr_analyze_url'         => 'handleAnalyzeUrl',
+            'pr_finalize_report'     => 'handleFinalizeReport',
+            'pr_cancel_report'       => 'handleCancelReport',
+            'pr_get_status'          => 'handleGetStatus',
+            'pr_get_report'          => 'handleGetReport',
+            'pr_get_recommendations' => 'handleGetRecommendations',
         ];
 
         foreach ($ajaxActions as $action => $method) {

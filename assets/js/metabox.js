@@ -137,6 +137,7 @@
             const data = report.analysis_result || report.report || {};
             const summary = data.summary || {};
             const competitors = data.competitors || [];
+            const recommendations = report.recommendations || [];
 
             let html = `<div class="pr-results">`;
 
@@ -198,6 +199,19 @@
             } else {
                 html += `<p class="pr-no-results">${this.esc(s.noResults)}</p>`;
             }
+
+            // Recommendations panel
+            html += `<div class="pr-recommendations" id="pr-recommendations-panel">`;
+            if (recommendations.length) {
+                html += this.renderRecommendations(recommendations);
+            } else {
+                html += `
+                    <button type="button" class="button pr-btn-recommendations">
+                        💡 ${this.esc(s.getRecommendations)}
+                    </button>
+                `;
+            }
+            html += `</div>`;
 
             // Actions bar
             html += `
@@ -435,6 +449,15 @@
                     this.loadReport(id);
                 });
             });
+
+            // Recommendations button
+            const btnRecs = this.root.querySelector('.pr-btn-recommendations');
+            if (btnRecs) {
+                btnRecs.addEventListener('click', () => {
+                    const reportId = report.report_id || report.id;
+                    this.fetchRecommendations(reportId);
+                });
+            }
         }
 
         renderVariations(variations) {
@@ -475,6 +498,57 @@
             if (price < avgPrice * 0.9) return 'pr-price--low';
             if (price > avgPrice * 1.1) return 'pr-price--high';
             return 'pr-price--mid';
+        }
+
+        renderRecommendations(recommendations) {
+            const s = this.config.strings;
+            let html = `<h4 class="pr-recommendations__title">💡 ${this.esc(s.recommendations)}</h4>`;
+            html += `<div class="pr-recommendations__list">`;
+            recommendations.forEach(rec => {
+                const validPriorities = ['high', 'medium', 'low'];
+                const priority = validPriorities.includes(rec.priority) ? rec.priority : 'medium';
+                const priorityClass = `pr-rec--${priority}`;
+                html += `
+                    <div class="pr-rec ${priorityClass}">
+                        <span class="pr-rec__priority">${this.esc(rec.priority || 'medium')}</span>
+                        <h5 class="pr-rec__title">${this.esc(rec.title)}</h5>
+                        <p class="pr-rec__desc">${this.esc(rec.description)}</p>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            return html;
+        }
+
+        fetchRecommendations(reportId) {
+            const s = this.config.strings;
+            const panel = this.root.querySelector('#pr-recommendations-panel');
+            if (!panel) return;
+
+            panel.innerHTML = `
+                <div class="pr-recommendations__loading">
+                    <div class="pr-progress__spinner"></div>
+                    <p>${this.esc(s.loadingRecs)}</p>
+                </div>
+            `;
+
+            this.ajax('pr_get_recommendations', { report_id: reportId })
+                .then(data => {
+                    panel.innerHTML = this.renderRecommendations(data.recommendations || []);
+                })
+                .catch(() => {
+                    panel.innerHTML = `
+                        <p class="pr-recommendations__error">${this.esc(s.recsFailed)}</p>
+                        <button type="button" class="button pr-btn-recommendations">
+                            💡 ${this.esc(s.getRecommendations)}
+                        </button>
+                    `;
+                    // Re-bind retry
+                    const retryBtn = panel.querySelector('.pr-btn-recommendations');
+                    if (retryBtn) {
+                        retryBtn.addEventListener('click', () => this.fetchRecommendations(reportId));
+                    }
+                });
         }
 
         esc(str) {

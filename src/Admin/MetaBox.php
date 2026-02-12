@@ -106,6 +106,10 @@ final class MetaBox
             'variations'          => __('Variations', 'product-research'),
             'noResults'           => __('No competitor data found.', 'product-research'),
             'cancel'              => __('Cancel', 'product-research'),
+            'recommendations'     => __('AI Recommendations', 'product-research'),
+            'getRecommendations'  => __('Get AI Recommendations', 'product-research'),
+            'loadingRecs'         => __('Generating recommendations...', 'product-research'),
+            'recsFailed'          => __('Failed to load recommendations.', 'product-research'),
         ];
     }
 }
