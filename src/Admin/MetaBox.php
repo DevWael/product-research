@@ -105,6 +105,7 @@ final class MetaBox
             'features'            => __('Common Features', 'product-research'),
             'variations'          => __('Variations', 'product-research'),
             'noResults'           => __('No competitor data found.', 'product-research'),
+            'cancel'              => __('Cancel', 'product-research'),
         ];
     }
 }

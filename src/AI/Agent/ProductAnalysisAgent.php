@@ -6,6 +6,8 @@ namespace ProductResearch\AI\Agent;
 
 use NeuronAI\Agent;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\Anthropic\Anthropic;
+use ProductResearch\AI\Providers\GeminiCompat;
 use NeuronAI\Providers\OpenAILike;
 use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\SystemPrompt;
@@ -15,22 +17,34 @@ use ProductResearch\Security\Encryption;
 /**
  * AI agent for extracting structured product data from competitor content.
  *
- * Uses Z.AI (OpenAI-compatible) via Neuron's OpenAILike provider.
- * Structured output enforced via CompetitorProfile schema class.
+ * Supports multiple AI providers: Z.AI (OpenAI-compatible), Anthropic Claude, and Google Gemini.
+ * Provider selection is controlled by the `pr_ai_provider` option.
  */
 final class ProductAnalysisAgent extends Agent
 {
     /**
-     * Configure the Z.AI provider.
+     * Configure the AI provider based on settings.
      */
     protected function provider(): AIProviderInterface
+    {
+        $providerType = get_option('pr_ai_provider', 'zai');
+
+        return match ($providerType) {
+            'anthropic' => $this->createAnthropicProvider(),
+            'gemini'    => $this->createGeminiProvider(),
+            default     => $this->createZaiProvider(),
+        };
+    }
+
+    /**
+     * Create the Z.AI (OpenAI-compatible) provider.
+     */
+    private function createZaiProvider(): AIProviderInterface
     {
         $encryption = new Encryption();
 
         $apiKey   = $encryption->decrypt(get_option('pr_zai_api_key', ''));
         $model    = get_option('pr_zai_model', 'glm-4.7');
-        // Neuron's OpenAILike provider appends /chat/completions automatically.
-        // The base URI must NOT include that path segment.
         $endpoint = get_option('pr_zai_endpoint', 'https://api.z.ai/api/coding/paas/v4');
 
         return new OpenAILike(
@@ -39,6 +53,49 @@ final class ProductAnalysisAgent extends Agent
             model: $model,
             parameters: [
                 'temperature' => 0.1,
+            ],
+            httpOptions: new HttpClientOptions(timeout: 60),
+        );
+    }
+
+    /**
+     * Create the Anthropic Claude provider.
+     */
+    private function createAnthropicProvider(): AIProviderInterface
+    {
+        $encryption = new Encryption();
+
+        $apiKey = $encryption->decrypt(get_option('pr_anthropic_api_key', ''));
+        $model  = get_option('pr_anthropic_model', 'claude-sonnet-4-20250514');
+
+        return new Anthropic(
+            key: $apiKey,
+            model: $model,
+            max_tokens: 8192,
+            parameters: [
+                'temperature' => 0.1,
+            ],
+            httpOptions: new HttpClientOptions(timeout: 60),
+        );
+    }
+
+    /**
+     * Create the Google Gemini provider.
+     */
+    private function createGeminiProvider(): AIProviderInterface
+    {
+        $encryption = new Encryption();
+
+        $apiKey = $encryption->decrypt(get_option('pr_gemini_api_key', ''));
+        $model  = get_option('pr_gemini_model', 'gemini-2.0-flash');
+
+        return new GeminiCompat(
+            key: $apiKey,
+            model: $model,
+            parameters: [
+                'generationConfig' => [
+                    'temperature' => 0.1,
+                ],
             ],
             httpOptions: new HttpClientOptions(timeout: 60),
         );
@@ -80,3 +137,4 @@ final class ProductAnalysisAgent extends Agent
         return CompetitorProfile::class;
     }
 }
+

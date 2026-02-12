@@ -69,6 +69,30 @@ final class SettingsPage
         submit_button();
         echo '</form>';
         echo '</div>';
+
+        // Toggle provider-specific field visibility.
+        ?>
+        <script>
+        (function() {
+            var sel = document.getElementById('pr_ai_provider');
+            if (!sel) return;
+            function toggle() {
+                var val = sel.value;
+                document.querySelectorAll('.pr-provider-zai').forEach(function(tr) {
+                    tr.style.display = val === 'zai' ? '' : 'none';
+                });
+                document.querySelectorAll('.pr-provider-anthropic').forEach(function(tr) {
+                    tr.style.display = val === 'anthropic' ? '' : 'none';
+                });
+                document.querySelectorAll('.pr-provider-gemini').forEach(function(tr) {
+                    tr.style.display = val === 'gemini' ? '' : 'none';
+                });
+            }
+            sel.addEventListener('change', toggle);
+            toggle();
+        })();
+        </script>
+        <?php
     }
 
     /**
@@ -86,14 +110,33 @@ final class SettingsPage
             self::PAGE_SLUG
         );
 
-        $this->addEncryptedField('pr_zai_api_key', __('Z.AI API Key', 'product-research'), self::SECTION_API);
-        $this->addTextField('pr_zai_model', __('Z.AI Model', 'product-research'), self::SECTION_API, 'glm-4.7');
+        // ── AI Provider selector ────────────────────────────────────
+        $this->addSelectField('pr_ai_provider', __('AI Provider', 'product-research'), self::SECTION_API, [
+            'zai'       => __('Z.AI (OpenAI-compatible)', 'product-research'),
+            'anthropic' => __('Anthropic Claude', 'product-research'),
+            'gemini'    => __('Google Gemini', 'product-research'),
+        ], 'zai');
+
+        // ── Z.AI fields ─────────────────────────────────────────────
+        $this->addEncryptedField('pr_zai_api_key', __('Z.AI API Key', 'product-research'), self::SECTION_API, 'pr-provider-zai');
+        $this->addTextField('pr_zai_model', __('Z.AI Model', 'product-research'), self::SECTION_API, 'glm-4.7', 'pr-provider-zai');
         $this->addTextField(
             'pr_zai_endpoint',
             __('Z.AI Endpoint URL', 'product-research'),
             self::SECTION_API,
-            'https://api.z.ai/api/coding/paas/v4'
+            'https://api.z.ai/api/coding/paas/v4',
+            'pr-provider-zai'
         );
+
+        // ── Anthropic Claude fields ─────────────────────────────────
+        $this->addEncryptedField('pr_anthropic_api_key', __('Claude API Key', 'product-research'), self::SECTION_API, 'pr-provider-anthropic');
+        $this->addTextField('pr_anthropic_model', __('Claude Model', 'product-research'), self::SECTION_API, 'claude-sonnet-4-20250514', 'pr-provider-anthropic');
+
+        // ── Google Gemini fields ────────────────────────────────────
+        $this->addEncryptedField('pr_gemini_api_key', __('Gemini API Key', 'product-research'), self::SECTION_API, 'pr-provider-gemini');
+        $this->addTextField('pr_gemini_model', __('Gemini Model', 'product-research'), self::SECTION_API, 'gemini-2.0-flash', 'pr-provider-gemini');
+
+        // ── Tavily (always visible) ─────────────────────────────────
         $this->addEncryptedField('pr_tavily_api_key', __('Tavily API Key', 'product-research'), self::SECTION_API);
     }
 
@@ -151,12 +194,14 @@ final class SettingsPage
     /**
      * Add an encrypted password field.
      */
-    private function addEncryptedField(string $id, string $label, string $section): void
+    private function addEncryptedField(string $id, string $label, string $section, string $rowClass = ''): void
     {
         register_setting(self::OPTION_GROUP, $id, [
             'type'              => 'string',
             'sanitize_callback' => fn(mixed $value): string => $this->sanitizeEncryptedField($id, $value),
         ]);
+
+        $args = $rowClass !== '' ? ['class' => $rowClass] : [];
 
         add_settings_field($id, $label, function () use ($id): void {
             $hasValue = get_option($id, '') !== '';
@@ -170,7 +215,7 @@ final class SettingsPage
                 $hasValue ? esc_attr__('Enter new key to update', 'product-research') : '',
                 $status
             );
-        }, self::PAGE_SLUG, $section);
+        }, self::PAGE_SLUG, $section, $args);
     }
 
     /**
@@ -191,7 +236,7 @@ final class SettingsPage
     /**
      * Add a text field.
      */
-    private function addTextField(string $id, string $label, string $section, string $default = ''): void
+    private function addTextField(string $id, string $label, string $section, string $default = '', string $rowClass = ''): void
     {
         register_setting(self::OPTION_GROUP, $id, [
             'type'              => 'string',
@@ -199,13 +244,15 @@ final class SettingsPage
             'sanitize_callback' => fn(mixed $v): string => sanitize_text_field((string) ($v ?? $default)),
         ]);
 
+        $args = $rowClass !== '' ? ['class' => $rowClass] : [];
+
         add_settings_field($id, $label, function () use ($id, $default): void {
             printf(
                 '<input type="text" id="%1$s" name="%1$s" value="%2$s" class="regular-text" />',
                 esc_attr($id),
                 esc_attr(get_option($id, $default))
             );
-        }, self::PAGE_SLUG, $section);
+        }, self::PAGE_SLUG, $section, $args);
     }
 
     /**

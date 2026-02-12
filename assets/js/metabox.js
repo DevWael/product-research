@@ -59,8 +59,30 @@
                     <div class="pr-progress__spinner"></div>
                     <p class="pr-progress__status">${this.esc(statusText)}</p>
                     <p class="pr-progress__message">${this.esc(message || '')}</p>
+                    <button type="button" class="button pr-btn-cancel">${this.esc(s.cancel || 'Cancel')}</button>
                 </div>
             `;
+
+            this.root.querySelector('.pr-btn-cancel').addEventListener('click', () => this.cancelReport());
+        }
+
+        cancelReport() {
+            if (!this.state.reportId) {
+                this.showFirstRun();
+                return;
+            }
+
+            this.stopPolling();
+            this.ajax('pr_cancel_report', { report_id: this.state.reportId })
+                .then(() => {
+                    this.state.reportId = null;
+                    this.showFirstRun();
+                })
+                .catch(() => {
+                    // Even on error, reset the UI so the user isn't stuck.
+                    this.state.reportId = null;
+                    this.showFirstRun();
+                });
         }
 
         showPreview(searchResults, urls, query) {
@@ -231,7 +253,7 @@
             });
         }
 
-        confirmUrls() {
+        async confirmUrls() {
             const checkboxes = this.root.querySelectorAll('.pr-url-checkbox:checked');
             const urls = Array.from(checkboxes).map(cb => cb.value);
 
@@ -242,26 +264,69 @@
 
             this.showProgress('extracting', '');
 
-            this.ajax('pr_confirm_urls', {
-                report_id: this.state.reportId,
-                selected_urls: JSON.stringify(urls),
-            }).then(data => {
-                if (data.status === 'complete') {
-                    this.showResults(data);
-                } else {
-                    this.showError(data.message || 'Analysis incomplete');
+            try {
+                // Step 1: Extract content from URLs (fast)
+                const extractData = await this.ajax('pr_confirm_urls', {
+                    report_id: this.state.reportId,
+                    selected_urls: JSON.stringify(urls),
+                });
+
+                const totalUrls = extractData.total_urls || 0;
+                if (totalUrls === 0) {
+                    this.showError('No content could be extracted from the selected URLs.');
+                    return;
                 }
-            }).catch(err => {
+
+                // Step 2: Analyze each URL one at a time (retry once on failure)
+                for (let i = 0; i < totalUrls; i++) {
+                    this.showProgress('analyzing', `Analyzing competitor ${i + 1} of ${totalUrls}...`);
+
+                    try {
+                        await this.ajax('pr_analyze_url', {
+                            report_id: this.state.reportId,
+                            url_index: i,
+                        });
+                    } catch (firstErr) {
+                        // The server may still be processing (ignore_user_abort).
+                        // Wait a few seconds then retry — the PHP check-before-analyze
+                        // will return the cached result if the background process finished.
+                        this.showProgress('analyzing', `Retrying competitor ${i + 1} of ${totalUrls}...`);
+                        await new Promise(r => setTimeout(r, 5000));
+                        try {
+                            await this.ajax('pr_analyze_url', {
+                                report_id: this.state.reportId,
+                                url_index: i,
+                            });
+                        } catch (retryErr) {
+                            // Let the per-URL error recording on the server handle it
+                            console.warn(`URL ${i} failed after retry:`, retryErr.message);
+                        }
+                    }
+                }
+
+                // Step 3: Finalize the report
+                this.showProgress('analyzing', 'Finalizing report...');
+
+                const finalData = await this.ajax('pr_finalize_report', {
+                    report_id: this.state.reportId,
+                });
+
+                this.showResults(finalData);
+            } catch (err) {
                 this.showError(err.message || 'Analysis failed');
-            });
+            }
         }
 
         resumeInProgress(data) {
             this.state.reportId = data.report_id || data.id;
             const status = data.status;
 
-            if (status === 'previewing' && data.search_results) {
-                this.showPreview(data.search_results, data.urls || [], data.query || '');
+            // formatReport() uses `competitor_data`; live AJAX uses `search_results`.
+            const results = data.search_results || data.competitor_data;
+            const query = data.query || data.search_query || '';
+
+            if (status === 'previewing' && results) {
+                this.showPreview(results, data.urls || data.selected_urls || [], query);
             } else if (status === 'complete') {
                 this.loadReport(this.state.reportId);
             } else if (status === 'failed') {

@@ -22,6 +22,7 @@ final class ReportPostType
     public const META_STATUS           = '_pr_status';
     public const META_PROGRESS_MESSAGE = '_pr_progress_message';
     public const META_SELECTED_URLS    = '_pr_selected_urls';
+    public const META_EXTRACTED_CONTENT = '_pr_extracted_content';
     public const META_ERROR_DETAILS    = '_pr_error_details';
 
     // Status constants.

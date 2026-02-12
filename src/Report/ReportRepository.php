@@ -251,6 +251,8 @@ final class ReportRepository
             $value = wp_json_encode($value);
         }
 
-        update_post_meta($postId, $key, $value);
+        // wp_slash() counteracts the wp_unslash() that update_post_meta
+        // applies internally, preserving backslash-escaped characters in JSON.
+        update_post_meta($postId, $key, is_string($value) ? wp_slash($value) : $value);
     }
 }

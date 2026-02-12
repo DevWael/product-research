@@ -147,7 +147,10 @@ final class ResearchHandler
     }
 
     /**
-     * Step 2: Extract content from confirmed URLs, run AI analysis, save report.
+     * Step 2: Extract content from confirmed URLs, save for analysis.
+     *
+     * Returns immediately after extraction so the frontend can
+     * drive per-URL AI analysis without hitting PHP timeout.
      */
     public function handleConfirmUrls(): void
     {
@@ -220,43 +223,13 @@ final class ResearchHandler
                 throw new \RuntimeException('No competitor data could be extracted from the selected URLs.');
             }
 
-            // --- Analyze ---
-            $this->reports->updateStatus(
-                $reportId,
-                ReportPostType::STATUS_ANALYZING,
-                __('Analyzing competitor data...', 'product-research')
-            );
+            // Save extracted content directly (bypass setMeta's JSON encoding
+            // because scraped HTML content can produce invalid JSON).
+            update_post_meta($reportId, ReportPostType::META_EXTRACTED_CONTENT, $extractedContent);
 
-            $profiles = [];
-            $agent    = ProductAnalysisAgent::make();
-
-            foreach ($extractedContent as $item) {
-                try {
-                    /** @var CompetitorProfile $profile */
-                    $profile = $agent->structured(
-                        new UserMessage($item['content']),
-                        CompetitorProfile::class
-                    );
-
-                    // Ensure the source URL is always set (AI may not extract it)
-                    if (empty($profile->url)) {
-                        $profile->url = $item['url'];
-                    }
-
-                    $profiles[] = $profile->toArray();
-                } catch (\Throwable $e) {
-                    $this->logger->log(sprintf('AI analysis failed for %s: %s', $item['url'], $e->getMessage()));
-                    $failedUrls[] = $item['url'];
-                }
-            }
-
-            if (empty($profiles)) {
-                throw new \RuntimeException('AI analysis returned no valid results.');
-            }
-
-            // --- Save Report ---
+            // Reset analysis results and save any extraction errors
             $this->reports->update($reportId, [
-                ReportPostType::META_ANALYSIS_RESULT => $profiles,
+                ReportPostType::META_ANALYSIS_RESULT => [],
                 ReportPostType::META_ERROR_DETAILS   => ! empty($failedUrls)
                     ? ['failed_urls' => $failedUrls]
                     : null,
@@ -264,29 +237,265 @@ final class ResearchHandler
 
             $this->reports->updateStatus(
                 $reportId,
-                ReportPostType::STATUS_COMPLETE,
-                __('Analysis complete', 'product-research')
+                ReportPostType::STATUS_ANALYZING,
+                __('Analyzing competitor data...', 'product-research')
             );
 
-            // Update cooldown timestamp
-            update_post_meta($report['product_id'], '_pr_last_analysis', time());
-
             wp_send_json_success([
-                'report_id'   => $reportId,
-                'status'      => ReportPostType::STATUS_COMPLETE,
-                'report'      => $profiles,
-                'failed_urls' => $failedUrls,
+                'report_id'  => $reportId,
+                'status'     => ReportPostType::STATUS_ANALYZING,
+                'total_urls' => count($extractedContent),
+                'message'    => __('Extraction complete. Starting analysis...', 'product-research'),
             ]);
         } catch (\Throwable $e) {
-            $this->logger->log(sprintf('Analysis failed for report %d: %s', $reportId, $e->getMessage()));
+            $this->logger->log(sprintf('Extraction failed for report %d: %s', $reportId, $e->getMessage()));
 
             $this->reports->updateStatus($reportId, ReportPostType::STATUS_FAILED, $e->getMessage());
 
             wp_send_json_error([
-                'message' => __('Analysis failed. Please try again.', 'product-research'),
+                'message' => __('Extraction failed. Please try again.', 'product-research'),
                 'debug'   => defined('WP_DEBUG') && WP_DEBUG ? $e->getMessage() : null,
             ], 500);
         }
+    }
+
+    /**
+     * Step 3: Analyze a single URL via AI.
+     *
+     * Called by the frontend in a loop — one call per extracted URL.
+     * Each call processes one item and stays within PHP's 30s limit.
+     */
+    public function handleAnalyzeUrl(): void
+    {
+        // Keep PHP running even if Nginx drops the connection (fastcgi_read_timeout).
+        // The AI call takes 30-90s; Nginx may kill the connection at 60s but PHP
+        // will finish and save the result. The JS retry will find it immediately.
+        // ignore_user_abort(true);
+        // @ini_set('max_execution_time', '120');
+        // @set_time_limit(120);
+
+        $this->verifyRequest();
+
+        $reportId = $this->getReportId();
+        $urlIndex = absint($_POST['url_index'] ?? 0);
+
+        $report = $this->reports->findById($reportId);
+        if ($report === null) {
+            wp_send_json_error(['message' => __('Report not found.', 'product-research')], 404);
+        }
+
+        $extractedContent = get_post_meta($reportId, ReportPostType::META_EXTRACTED_CONTENT, true);
+        if (! is_array($extractedContent) || empty($extractedContent)) {
+            wp_send_json_error(['message' => __('No extracted content found.', 'product-research')], 400);
+        }
+
+        if (! isset($extractedContent[$urlIndex])) {
+            wp_send_json_error(['message' => __('Invalid URL index.', 'product-research')], 400);
+        }
+
+        $item  = $extractedContent[$urlIndex];
+        $total = count($extractedContent);
+
+        // ── Check if this URL was already analyzed ──────────────────────
+        // A previous request may have timed out at the Nginx level but
+        // continued running in the background (ignore_user_abort).
+        // If it completed, the result is already in the database.
+        $existingRaw      = get_post_meta($reportId, ReportPostType::META_ANALYSIS_RESULT, true);
+        $existingProfiles = is_string($existingRaw) && $existingRaw !== ''
+            ? (json_decode($existingRaw, true) ?? [])
+            : (is_array($existingRaw) ? $existingRaw : []);
+
+        foreach ($existingProfiles as $existing) {
+            if (isset($existing['url']) && $existing['url'] === $item['url']) {
+                // Already analyzed — return immediately.
+                wp_send_json_success([
+                    'report_id' => $reportId,
+                    'profile'   => $existing,
+                    'progress'  => [
+                        'current' => $urlIndex + 1,
+                        'total'   => $total,
+                    ],
+                ]);
+                return; // wp_send_json_success calls die(), but be explicit.
+            }
+        }
+
+        $this->reports->updateStatus(
+            $reportId,
+            ReportPostType::STATUS_ANALYZING,
+            sprintf(
+                /* translators: %1$d: current URL number, %2$d: total URLs */
+                __('Analyzing competitor %1$d of %2$d...', 'product-research'),
+                $urlIndex + 1,
+                $total
+            )
+        );
+
+        try {
+            $agent = ProductAnalysisAgent::make();
+
+            // Truncate content to reduce LLM inference time.
+            // Product data (name, price, variations) is in the first few KB;
+            // the rest is navigation/footer noise that slows the call.
+            $content = mb_substr($item['content'], 0, 8000);
+
+            /** @var CompetitorProfile $profile */
+            $profile = $agent->structured(
+                new UserMessage($content),
+                CompetitorProfile::class
+            );
+
+            // Ensure the source URL is always set (AI may not extract it)
+            if (empty($profile->url)) {
+                $profile->url = $item['url'];
+            }
+
+            $profileArray = $profile->toArray();
+
+            // Append to existing analysis results — re-read to avoid race conditions.
+            // Note: setMeta() stores arrays as JSON strings, so we must decode/re-encode.
+            $rawProfiles        = get_post_meta($reportId, ReportPostType::META_ANALYSIS_RESULT, true);
+            $currentProfiles    = is_string($rawProfiles) ? (json_decode($rawProfiles, true) ?? []) : (is_array($rawProfiles) ? $rawProfiles : []);
+            $currentProfiles[]  = $profileArray;
+
+            update_post_meta($reportId, ReportPostType::META_ANALYSIS_RESULT, wp_slash(wp_json_encode($currentProfiles)));
+
+            wp_send_json_success([
+                'report_id' => $reportId,
+                'profile'   => $profileArray,
+                'progress'  => [
+                    'current' => $urlIndex + 1,
+                    'total'   => $total,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            $this->logger->log(sprintf('AI analysis failed for %s: %s', $item['url'], $e->getMessage()));
+
+            // Record the failed URL but don't fail the whole report
+            $rawErrors    = get_post_meta($reportId, ReportPostType::META_ERROR_DETAILS, true);
+            $errorDetails = is_array($rawErrors) ? $rawErrors : [];
+
+            $errorDetails['failed_urls']   = $errorDetails['failed_urls'] ?? [];
+            $errorDetails['failed_urls'][] = $item['url'];
+
+            update_post_meta($reportId, ReportPostType::META_ERROR_DETAILS, $errorDetails);
+
+            // Return success with error flag so frontend continues the loop
+            wp_send_json_success([
+                'report_id' => $reportId,
+                'profile'   => null,
+                'error'     => $e->getMessage(),
+                'failed_url' => $item['url'],
+                'progress'  => [
+                    'current' => $urlIndex + 1,
+                    'total'   => $total,
+                ],
+            ]);
+        }
+    }
+
+    /**
+     * Step 4: Finalize the report after all URLs have been analyzed.
+     */
+    public function handleFinalizeReport(): void
+    {
+        $this->verifyRequest();
+
+        $reportId = $this->getReportId();
+
+        $report = $this->reports->findById($reportId);
+        if ($report === null) {
+            wp_send_json_error(['message' => __('Report not found.', 'product-research')], 404);
+        }
+
+        $rawProfiles = get_post_meta($reportId, ReportPostType::META_ANALYSIS_RESULT, true);
+        $profiles    = is_string($rawProfiles) && $rawProfiles !== '' ? (json_decode($rawProfiles, true) ?? []) : (is_array($rawProfiles) ? $rawProfiles : []);
+
+        if (empty($profiles)) {
+            $this->reports->updateStatus($reportId, ReportPostType::STATUS_FAILED, 'AI analysis returned no valid results.');
+
+            wp_send_json_error([
+                'message' => __('No competitors could be analyzed. Please try again.', 'product-research'),
+            ], 500);
+        }
+
+        // Build structured report matching the format expected by the JS metabox.
+        // The async workflow path (ReportNode) does this automatically;
+        // the sequential AJAX path must do it here.
+        $prices  = array_filter(array_column($profiles, 'current_price'));
+        $summary = [
+            'total_competitors' => count($profiles),
+            'lowest_price'      => ! empty($prices) ? round(min($prices), 2) : 0,
+            'highest_price'     => ! empty($prices) ? round(max($prices), 2) : 0,
+            'avg_price'         => ! empty($prices) ? round(array_sum($prices) / count($prices), 2) : 0,
+            'key_findings'      => $this->buildKeyFindings($profiles),
+        ];
+
+        $structuredReport = [
+            'competitors' => $profiles,
+            'summary'     => $summary,
+        ];
+
+        // Overwrite the flat profiles array with the structured report.
+        $this->reports->update($reportId, [
+            ReportPostType::META_ANALYSIS_RESULT => $structuredReport,
+        ]);
+
+        // Clean up extracted content (no longer needed)
+        delete_post_meta($reportId, ReportPostType::META_EXTRACTED_CONTENT);
+
+        $this->reports->updateStatus(
+            $reportId,
+            ReportPostType::STATUS_COMPLETE,
+            __('Analysis complete', 'product-research')
+        );
+
+        // Update cooldown timestamp
+        update_post_meta($report['product_id'], '_pr_last_analysis', time());
+
+        wp_send_json_success([
+            'report_id'   => $reportId,
+            'status'      => ReportPostType::STATUS_COMPLETE,
+            'report'      => $structuredReport,
+            'failed_urls' => $report['error_details']['failed_urls'] ?? [],
+        ]);
+    }
+
+    /**
+     * Cancel an in-progress report.
+     */
+    public function handleCancelReport(): void
+    {
+        $this->verifyRequest();
+
+        $reportId = $this->getReportId();
+        $report   = $this->reports->findById($reportId);
+
+        if ($report === null) {
+            wp_send_json_error(['message' => __('Report not found.', 'product-research')], 404);
+        }
+
+        // Only cancel non-terminal reports.
+        if (in_array($report['status'], [ReportPostType::STATUS_COMPLETE, ReportPostType::STATUS_FAILED], true)) {
+            wp_send_json_error(['message' => __('Report is already finished.', 'product-research')], 400);
+        }
+
+        $this->reports->updateStatus(
+            $reportId,
+            ReportPostType::STATUS_FAILED,
+            __('Cancelled by user.', 'product-research')
+        );
+
+        // Clean up extracted content (no longer needed).
+        delete_post_meta($reportId, ReportPostType::META_EXTRACTED_CONTENT);
+
+        $this->logger->log(sprintf('Report %d cancelled by user.', $reportId));
+
+        wp_send_json_success([
+            'report_id' => $reportId,
+            'status'    => ReportPostType::STATUS_FAILED,
+            'message'   => __('Analysis cancelled.', 'product-research'),
+        ]);
     }
 
     /**
@@ -472,5 +681,49 @@ final class ResearchHandler
         }
 
         return $this->tavily->getCreditsUsedToday() < $budget;
+    }
+
+    /**
+     * Generate key findings from analyzed profiles.
+     *
+     * @param array<int, array<string, mixed>> $profiles
+     * @return array<string>
+     */
+    private function buildKeyFindings(array $profiles): array
+    {
+        $findings = [];
+        $prices   = array_filter(array_column($profiles, 'current_price'));
+
+        if (! empty($prices)) {
+            $currency   = $profiles[0]['currency'] ?? '';
+            $findings[] = sprintf(
+                /* translators: %1$s: currency, %2$.2f: lowest price, %3$.2f: highest price, %4$d: competitor count */
+                __('Price range: %1$s %2$.2f – %1$s %3$.2f across %4$d competitors', 'product-research'),
+                $currency,
+                min($prices),
+                max($prices),
+                count($profiles)
+            );
+        }
+
+        // Discounts
+        $discounted = array_filter($profiles, static fn(array $p): bool => ! empty($p['original_price']) && $p['original_price'] > 0);
+        if (! empty($discounted)) {
+            $findings[] = sprintf(
+                __('%d competitor(s) currently offering discounts', 'product-research'),
+                count($discounted)
+            );
+        }
+
+        // Variations
+        $withVariations = array_filter($profiles, static fn(array $p): bool => ! empty($p['variations']));
+        if (! empty($withVariations)) {
+            $findings[] = sprintf(
+                __('%d competitor(s) offer product variations', 'product-research'),
+                count($withVariations)
+            );
+        }
+
+        return $findings;
     }
 }

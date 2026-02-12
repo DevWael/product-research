@@ -70,10 +70,13 @@ final class TavilyClient
 
         $body = array_merge([
             'urls'          => $urls,
-            'extract_depth' => get_option('pr_tavily_extract_depth', 'basic'),
+            'extract_depth' => get_option('pr_tavily_extract_depth', 'advanced'),
         ], $options);
 
-        return $this->request(self::EXTRACT_URL, $body, $apiKey);
+        // Extract requests can take much longer than search (30s per URL at
+        // advanced depth).  Use a generous timeout so WordPress doesn't abort
+        // the HTTP call before Tavily finishes.
+        return $this->request(self::EXTRACT_URL, $body, $apiKey, 120);
     }
 
     /**
@@ -104,7 +107,7 @@ final class TavilyClient
      * @return array<string, mixed>
      * @throws \RuntimeException On failure after retries.
      */
-    private function request(string $url, array $body, string $apiKey): array
+    private function request(string $url, array $body, string $apiKey, int $timeout = 30): array
     {
         $lastError = '';
 
@@ -120,7 +123,7 @@ final class TavilyClient
                     'Authorization' => 'Bearer ' . $apiKey,
                 ],
                 'body'    => wp_json_encode($body),
-                'timeout' => 30,
+                'timeout' => $timeout,
             ]);
 
             if (is_wp_error($response)) {

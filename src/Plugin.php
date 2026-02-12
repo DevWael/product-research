@@ -78,10 +78,13 @@ final class Plugin
     private function registerAjaxHandlers(): void
     {
         $ajaxActions = [
-            'pr_start_research' => 'handleStartResearch',
-            'pr_confirm_urls'   => 'handleConfirmUrls',
-            'pr_get_status'     => 'handleGetStatus',
-            'pr_get_report'     => 'handleGetReport',
+            'pr_start_research'  => 'handleStartResearch',
+            'pr_confirm_urls'    => 'handleConfirmUrls',
+            'pr_analyze_url'     => 'handleAnalyzeUrl',
+            'pr_finalize_report' => 'handleFinalizeReport',
+            'pr_cancel_report'   => 'handleCancelReport',
+            'pr_get_status'      => 'handleGetStatus',
+            'pr_get_report'      => 'handleGetReport',
         ];
 
         foreach ($ajaxActions as $action => $method) {
