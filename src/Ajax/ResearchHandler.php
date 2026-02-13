@@ -126,6 +126,23 @@ final class ResearchHandler
                 $searchResults
             )));
 
+            // Merge bookmarked URLs into search results
+            $bookmarkedUrls = get_post_meta($productId, '_pr_bookmarked_urls', true);
+            if (is_array($bookmarkedUrls) && ! empty($bookmarkedUrls)) {
+                foreach ($bookmarkedUrls as $bmUrl) {
+                    if (! in_array($bmUrl, $urls, true)) {
+                        $urls[]          = $bmUrl;
+                        $searchResults[] = [
+                            'url'     => $bmUrl,
+                            'title'   => __('Bookmarked Competitor', 'product-research'),
+                            'content' => '',
+                            'score'   => 0,
+                            'bookmarked' => true,
+                        ];
+                    }
+                }
+            }
+
             // Save search data to report
             $this->reports->update($reportId, [
                 ReportPostType::META_SEARCH_QUERY   => $query,
@@ -470,6 +487,21 @@ final class ResearchHandler
             'competitor_count' => count($profiles),
             'price_position'  => $this->calculatePricePosition($productPrice, $prices),
         ]);
+
+        // Store price history snapshot
+        $priceHistory = get_post_meta($report['product_id'], '_pr_price_history', true);
+        $priceHistory = is_array($priceHistory) ? $priceHistory : [];
+        $priceHistory[] = [
+            'date'          => wp_date('Y-m-d'),
+            'product_price' => $productPrice,
+            'avg_price'     => $summary['avg_price'],
+            'lowest_price'  => $summary['lowest_price'],
+            'highest_price' => $summary['highest_price'],
+            'competitors'   => count($profiles),
+        ];
+        // Cap at 20 entries
+        $priceHistory = array_slice($priceHistory, -20);
+        update_post_meta($report['product_id'], '_pr_price_history', $priceHistory);
 
         // Auto-generate recommendations if enabled
         $recommendations = [];

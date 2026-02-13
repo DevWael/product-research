@@ -8,6 +8,8 @@ use ProductResearch\Admin\Assets;
 use ProductResearch\Admin\MetaBox;
 use ProductResearch\Admin\ProductListColumns;
 use ProductResearch\Admin\SettingsPage;
+use ProductResearch\Ajax\BookmarkHandler;
+use ProductResearch\Ajax\CopywriterHandler;
 use ProductResearch\Ajax\ResearchHandler;
 use ProductResearch\Export\ReportExporter;
 use ProductResearch\Report\ReportPostType;
@@ -103,6 +105,20 @@ final class Plugin
 
         add_action('wp_ajax_pr_export_pdf', function (): void {
             $this->container->get(ReportExporter::class)->handlePdfExport();
+        });
+
+        // Bookmark handlers
+        add_action('wp_ajax_pr_add_bookmark', function (): void {
+            $this->container->get(BookmarkHandler::class)->handleAddBookmark();
+        });
+
+        add_action('wp_ajax_pr_remove_bookmark', function (): void {
+            $this->container->get(BookmarkHandler::class)->handleRemoveBookmark();
+        });
+
+        // Copywriter handler
+        add_action('wp_ajax_pr_generate_copy', function (): void {
+            $this->container->get(CopywriterHandler::class)->handleGenerateCopy();
         });
     }
 }

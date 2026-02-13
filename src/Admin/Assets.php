@@ -36,10 +36,18 @@ final class Assets
             $version
         );
 
+        wp_register_script(
+            'chartjs',
+            'https://cdn.jsdelivr.net/npm/chart.js@4',
+            [],
+            '4.4.7',
+            true
+        );
+
         wp_enqueue_script(
             'pr-metabox',
             $this->pluginUrl . 'assets/js/metabox.js',
-            ['jquery'],
+            ['jquery', 'chartjs'],
             $version,
             true
         );

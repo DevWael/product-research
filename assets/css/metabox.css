@@ -518,3 +518,301 @@
     display: block;
     margin: 0 auto;
 }
+
+/* ─── Analytics Tabs ────────────────────────────────────── */
+.pr-analytics {
+    margin-bottom: 16px;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.pr-analytics__tabs {
+    display: flex;
+    border-bottom: 1px solid #dcdcde;
+    background: #f6f7f7;
+}
+
+.pr-analytics__tab {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: #646970;
+    transition: color 0.15s, background-color 0.15s;
+    border-bottom: 2px solid transparent;
+}
+
+.pr-analytics__tab:hover {
+    color: #1d2327;
+    background: #f0f0f1;
+}
+
+.pr-analytics__tab--active {
+    color: #2271b1;
+    border-bottom-color: #2271b1;
+    background: #fff;
+}
+
+.pr-analytics__panel {
+    display: none;
+    padding: 16px;
+    min-height: 200px;
+}
+
+.pr-analytics__panel--active {
+    display: block;
+}
+
+.pr-chart-empty {
+    color: #646970;
+    text-align: center;
+    padding: 40px 20px;
+    font-style: italic;
+}
+
+/* ─── Bookmark ──────────────────────────────────────────── */
+.pr-bookmark {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0 6px;
+    color: #dcdcde;
+    transition: color 0.15s, transform 0.15s;
+    line-height: 1;
+}
+
+.pr-bookmark:hover {
+    color: #dba617;
+    transform: scale(1.2);
+}
+
+.pr-bookmark--active {
+    color: #dba617;
+}
+
+.pr-bookmark:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+/* ─── Compare Checkbox ──────────────────────────────────── */
+.pr-compare-check {
+    margin-right: 8px;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.pr-compare-check input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+/* ─── Floating Compare Bar ──────────────────────────────── */
+.pr-compare-bar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #1d2327;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 6px;
+    margin-top: 12px;
+    z-index: 10;
+}
+
+.pr-compare-bar__count {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* ─── Comparison Overlay ────────────────────────────────── */
+.pr-comparison-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.pr-comparison-modal {
+    background: #fff;
+    border-radius: 8px;
+    max-width: 900px;
+    width: 100%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.pr-comparison-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #dcdcde;
+}
+
+.pr-comparison-modal__header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #1d2327;
+}
+
+.pr-comparison-modal__close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #646970;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.pr-comparison-modal__close:hover {
+    color: #d63638;
+}
+
+.pr-comparison-modal__body {
+    overflow: auto;
+    padding: 16px 20px;
+}
+
+.pr-comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.pr-comparison-table th,
+.pr-comparison-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid #f0f0f1;
+    vertical-align: top;
+}
+
+.pr-comparison-table thead th {
+    background: #f6f7f7;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.pr-comparison-table tbody tr:hover {
+    background: #f9f9f9;
+}
+
+/* ─── Copywriter Panel ──────────────────────────────────── */
+.pr-copywriter {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #dcdcde;
+}
+
+.pr-copywriter__controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.pr-copywriter__tone {
+    padding: 4px 8px;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.pr-copy-result {
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    padding: 16px;
+}
+
+.pr-copy-result h4 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    color: #1d2327;
+}
+
+.pr-copy-result__section {
+    margin-bottom: 12px;
+}
+
+.pr-copy-result__section label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #646970;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.pr-copy-result__title {
+    font-weight: 700;
+    font-size: 15px;
+    color: #1d2327;
+}
+
+.pr-copy-result__full {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.pr-copy-result__actions {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+}
+
+/* ─── Tags ──────────────────────────────────────────────── */
+.pr-tag {
+    display: inline-block;
+    background: #e8f0fe;
+    color: #2271b1;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    margin: 2px;
+    font-weight: 500;
+}
+
+/* ─── Notices ───────────────────────────────────────────── */
+.pr-notice {
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.pr-notice--success {
+    background: #dff0d8;
+    color: #3c763d;
+    border: 1px solid #00a32a;
+}

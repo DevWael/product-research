@@ -8,6 +8,8 @@ use ProductResearch\Admin\Assets;
 use ProductResearch\Admin\MetaBox;
 use ProductResearch\Admin\ProductListColumns;
 use ProductResearch\Admin\SettingsPage;
+use ProductResearch\Ajax\BookmarkHandler;
+use ProductResearch\Ajax\CopywriterHandler;
 use ProductResearch\Ajax\ResearchHandler;
 use ProductResearch\API\ContentSanitizer;
 use ProductResearch\API\TavilyClient;
@@ -127,6 +129,19 @@ final class Container
                 $c->get(ContentSanitizer::class),
                 $c->get(ReportRepository::class),
                 $c->get(CacheManager::class),
+                $c->get(Logger::class)
+            );
+        });
+
+        $this->set(BookmarkHandler::class, function (self $c): BookmarkHandler {
+            return new BookmarkHandler(
+                $c->get(ReportRepository::class)
+            );
+        });
+
+        $this->set(CopywriterHandler::class, function (self $c): CopywriterHandler {
+            return new CopywriterHandler(
+                $c->get(ReportRepository::class),
                 $c->get(Logger::class)
             );
         });

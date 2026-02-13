@@ -15,6 +15,9 @@
                 phase: 'idle',
                 reportId: null,
                 searchResults: [],
+                priceChartInstance: null,
+                historyChartInstance: null,
+                originalDescription: null,
                 selectedUrls: [],
                 report: null,
                 polling: null,
@@ -138,6 +141,7 @@
             const summary = data.summary || {};
             const competitors = data.competitors || [];
             const recommendations = report.recommendations || [];
+            const bookmarkedUrls = this.config.bookmarkedUrls || [];
 
             let html = `<div class="pr-results">`;
 
@@ -166,18 +170,45 @@
                 html += `</ul></div>`;
             }
 
-            // Competitor Cards
+            // ─── Analytics Tabs ─────────────────────────────────────
+            if (competitors.length) {
+                html += `
+                    <div class="pr-analytics">
+                        <div class="pr-analytics__tabs">
+                            <button type="button" class="pr-analytics__tab pr-analytics__tab--active" data-tab="chart">📊 ${this.esc(s.priceChart)}</button>
+                            <button type="button" class="pr-analytics__tab" data-tab="history">📈 ${this.esc(s.priceHistory)}</button>
+                        </div>
+                        <div class="pr-analytics__panel pr-analytics__panel--active" data-panel="chart">
+                            ${this.renderPriceChart(competitors, summary)}
+                        </div>
+                        <div class="pr-analytics__panel" data-panel="history">
+                            ${this.renderPriceHistory()}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Competitor Cards with bookmark + compare
             if (competitors.length) {
                 html += `<div class="pr-competitors">`;
                 competitors.forEach((comp, i) => {
                     const priceClass = this.getPriceClass(comp.current_price, summary.avg_price);
+                    const isBookmarked = bookmarkedUrls.includes(comp.url);
+                    const bmClass = isBookmarked ? 'pr-bookmark--active' : '';
+                    const bmLabel = isBookmarked ? s.bookmarked : s.bookmark;
                     html += `
                         <div class="pr-card pr-card--collapsed" data-index="${i}">
                             <div class="pr-card__header" role="button">
+                                <label class="pr-compare-check" title="${this.esc(s.compare)}" onclick="event.stopPropagation()">
+                                    <input type="checkbox" class="pr-compare-cb" data-index="${i}">
+                                </label>
                                 <span class="pr-card__name">${this.esc(comp.name)}</span>
                                 <span class="pr-card__price ${priceClass}">
                                     ${comp.currency} ${comp.current_price}
                                 </span>
+                                <button type="button" class="pr-bookmark ${bmClass}" data-url="${this.escAttr(comp.url)}" title="${this.esc(bmLabel)}" onclick="event.stopPropagation()">
+                                    ${isBookmarked ? '★' : '☆'}
+                                </button>
                                 <span class="pr-card__toggle">▼</span>
                             </div>
                             <div class="pr-card__body">
@@ -196,6 +227,12 @@
                     `;
                 });
                 html += `</div>`;
+
+                // Floating compare bar
+                html += `<div class="pr-compare-bar" style="display:none">
+                    <span class="pr-compare-bar__count"></span>
+                    <button type="button" class="button button-primary pr-btn-compare">${this.esc(s.compareSelected)}</button>
+                </div>`;
             } else {
                 html += `<p class="pr-no-results">${this.esc(s.noResults)}</p>`;
             }
@@ -212,6 +249,24 @@
                 `;
             }
             html += `</div>`;
+
+            // Copywriter panel
+            html += `
+                <div class="pr-copywriter" id="pr-copywriter-panel">
+                    <div class="pr-copywriter__controls">
+                        <select class="pr-copywriter__tone">
+                            <option value="professional">${this.esc(s.toneProfessional)}</option>
+                            <option value="casual">${this.esc(s.toneCasual)}</option>
+                            <option value="luxury">${this.esc(s.toneLuxury)}</option>
+                            <option value="discount">${this.esc(s.toneDiscount)}</option>
+                        </select>
+                        <button type="button" class="button pr-btn-copywriter">
+                            ✍️ ${this.esc(s.generateCopy)}
+                        </button>
+                    </div>
+                    <div class="pr-copywriter__output"></div>
+                </div>
+            `;
 
             // Actions bar
             html += `
@@ -230,7 +285,7 @@
             html += `</div>`;
             this.root.innerHTML = html;
 
-            this.bindResultEvents(report);
+            this.bindResultEvents(report, competitors, summary);
         }
 
         showError(message) {
@@ -412,10 +467,14 @@
             this.root.querySelectorAll('.pr-url-checkbox').forEach(cb => { cb.checked = checked; });
         }
 
-        bindResultEvents(report) {
+        bindResultEvents(report, competitors = [], summary = {}) {
+            const reportId = report.report_id || report.id;
+
             // Card toggle
             this.root.querySelectorAll('.pr-card__header').forEach(header => {
-                header.addEventListener('click', () => {
+                header.addEventListener('click', (e) => {
+                    // Don't toggle if clicking bookmark or compare
+                    if (e.target.closest('.pr-bookmark') || e.target.closest('.pr-compare-check')) return;
                     header.parentElement.classList.toggle('pr-card--collapsed');
                 });
             });
@@ -428,7 +487,6 @@
             const btnCsv = this.root.querySelector('.pr-btn-export-csv');
             if (btnCsv) {
                 btnCsv.addEventListener('click', () => {
-                    const reportId = report.report_id || report.id;
                     window.open(`${this.config.ajaxUrl}?action=pr_export_csv&report_id=${reportId}&nonce=${this.config.nonce}`, '_blank');
                 });
             }
@@ -437,7 +495,6 @@
             const btnPdf = this.root.querySelector('.pr-btn-export-pdf');
             if (btnPdf) {
                 btnPdf.addEventListener('click', () => {
-                    const reportId = report.report_id || report.id;
                     window.open(`${this.config.ajaxUrl}?action=pr_export_pdf&report_id=${reportId}&nonce=${this.config.nonce}`, '_blank');
                 });
             }
@@ -453,9 +510,87 @@
             // Recommendations button
             const btnRecs = this.root.querySelector('.pr-btn-recommendations');
             if (btnRecs) {
-                btnRecs.addEventListener('click', () => {
-                    const reportId = report.report_id || report.id;
-                    this.fetchRecommendations(reportId);
+                btnRecs.addEventListener('click', () => this.fetchRecommendations(reportId));
+            }
+
+            // ─── Chart.js Initialization ────────────────────────────
+            this.initPriceChart(competitors, summary);
+
+            // ─── Tab Switching ──────────────────────────────────────
+            this.root.querySelectorAll('.pr-analytics__tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    this.root.querySelectorAll('.pr-analytics__tab').forEach(t => t.classList.remove('pr-analytics__tab--active'));
+                    this.root.querySelectorAll('.pr-analytics__panel').forEach(p => p.classList.remove('pr-analytics__panel--active'));
+                    tab.classList.add('pr-analytics__tab--active');
+                    const panel = this.root.querySelector(`[data-panel="${tab.dataset.tab}"]`);
+                    if (panel) panel.classList.add('pr-analytics__panel--active');
+
+                    // Lazy init history chart
+                    if (tab.dataset.tab === 'history' && !this.state.historyChartInstance) {
+                        this.initHistoryChart();
+                    }
+                });
+            });
+
+            // ─── Bookmark Events ────────────────────────────────────
+            this.root.querySelectorAll('.pr-bookmark').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (btn.disabled) return;
+                    btn.disabled = true;
+
+                    const url = btn.dataset.url;
+                    const isActive = btn.classList.contains('pr-bookmark--active');
+                    const action = isActive ? 'pr_remove_bookmark' : 'pr_add_bookmark';
+
+                    this.ajax(action, { product_id: this.config.productId, url })
+                        .then(() => {
+                            btn.classList.toggle('pr-bookmark--active');
+                            btn.innerHTML = btn.classList.contains('pr-bookmark--active') ? '★' : '☆';
+                            // Update local state
+                            if (btn.classList.contains('pr-bookmark--active')) {
+                                if (!this.config.bookmarkedUrls.includes(url)) this.config.bookmarkedUrls.push(url);
+                            } else {
+                                this.config.bookmarkedUrls = this.config.bookmarkedUrls.filter(u => u !== url);
+                            }
+                        })
+                        .finally(() => { btn.disabled = false; });
+                });
+            });
+
+            // ─── Compare Events ─────────────────────────────────────
+            const compareBar = this.root.querySelector('.pr-compare-bar');
+            const compareBtnMain = this.root.querySelector('.pr-btn-compare');
+            const compareCount = this.root.querySelector('.pr-compare-bar__count');
+
+            this.root.querySelectorAll('.pr-compare-cb').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const checked = this.root.querySelectorAll('.pr-compare-cb:checked');
+                    if (checked.length > 3) {
+                        cb.checked = false;
+                        return;
+                    }
+                    if (compareBar) {
+                        compareBar.style.display = checked.length >= 2 ? 'flex' : 'none';
+                        if (compareCount) compareCount.textContent = `${checked.length} selected`;
+                    }
+                });
+            });
+
+            if (compareBtnMain) {
+                compareBtnMain.addEventListener('click', () => {
+                    const indices = Array.from(this.root.querySelectorAll('.pr-compare-cb:checked')).map(cb => parseInt(cb.dataset.index, 10));
+                    const selected = indices.map(i => competitors[i]).filter(Boolean);
+                    if (selected.length >= 2) this.showComparisonOverlay(selected, summary);
+                });
+            }
+
+            // ─── Copywriter Events ──────────────────────────────────
+            const btnCopy = this.root.querySelector('.pr-btn-copywriter');
+            if (btnCopy) {
+                btnCopy.addEventListener('click', () => {
+                    const tone = this.root.querySelector('.pr-copywriter__tone')?.value || 'professional';
+                    this.fetchCopy(reportId, tone);
                 });
             }
         }
@@ -549,6 +684,344 @@
                         retryBtn.addEventListener('click', () => this.fetchRecommendations(reportId));
                     }
                 });
+        }
+
+        // ─── Price Chart (HTML container) ───────────────────────────────
+        renderPriceChart(competitors, summary) {
+            const s = this.config.strings;
+            const prices = competitors.filter(c => c.current_price > 0).map(c => ({
+                name: c.name,
+                price: parseFloat(c.current_price),
+                currency: c.currency || ''
+            }));
+
+            if (!prices.length) {
+                return `<p class="pr-chart-empty">${this.esc(s.chartNoData)}</p>`;
+            }
+
+            // Add the user's product
+            const productPrice = parseFloat(this.config.productPrice) || 0;
+            if (productPrice > 0) {
+                prices.unshift({
+                    name: s.yourProduct,
+                    price: productPrice,
+                    currency: this.config.productCurrency || ''
+                });
+            }
+
+            return `<canvas id="pr-price-chart" height="300"></canvas>`;
+        }
+
+        // ─── Price History (HTML container) ──────────────────────────────
+        renderPriceHistory() {
+            const s = this.config.strings;
+            const history = this.config.priceHistory || [];
+
+            if (history.length < 2) {
+                return `<p class="pr-chart-empty">${this.esc(s.historyNoData)}</p>`;
+            }
+
+            return `<canvas id="pr-history-chart" height="300"></canvas>`;
+        }
+
+        // ─── Initialize Price Comparison Chart (Chart.js) ───────────────
+        initPriceChart(competitors, summary) {
+            const canvas = this.root.querySelector('#pr-price-chart');
+            if (!canvas || typeof Chart === 'undefined') return;
+
+            const productPrice = parseFloat(this.config.productPrice) || 0;
+            const s = this.config.strings;
+
+            const items = [];
+            if (productPrice > 0) {
+                items.push({ label: s.yourProduct, price: productPrice, isOwn: true });
+            }
+            competitors.forEach(c => {
+                if (c.current_price > 0) {
+                    items.push({ label: c.name?.substring(0, 20), price: parseFloat(c.current_price), isOwn: false });
+                }
+            });
+
+            if (!items.length) return;
+
+            const avgPrice = parseFloat(summary.avg_price) || 0;
+
+            this.state.priceChartInstance = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: items.map(i => i.label),
+                    datasets: [{
+                        label: s.priceChart,
+                        data: items.map(i => i.price),
+                        backgroundColor: items.map(i => i.isOwn ? '#2271b1' : '#dcdcde'),
+                        borderColor: items.map(i => i.isOwn ? '#135e96' : '#bbb'),
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        annotation: avgPrice > 0 ? {
+                            annotations: {
+                                avgLine: {
+                                    type: 'line',
+                                    yMin: avgPrice,
+                                    yMax: avgPrice,
+                                    borderColor: '#d63638',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    label: {
+                                        display: true,
+                                        content: `Avg: ${avgPrice}`,
+                                        position: 'start'
+                                    }
+                                }
+                            }
+                        } : {}
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: { display: true, text: 'Price' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ─── Initialize Price History Chart (Chart.js) ──────────────────
+        initHistoryChart() {
+            const canvas = this.root.querySelector('#pr-history-chart');
+            if (!canvas || typeof Chart === 'undefined') return;
+
+            const history = this.config.priceHistory || [];
+            if (history.length < 2) return;
+
+            const labels = history.map(h => h.date || '');
+
+            this.state.historyChartInstance = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Your Price',
+                            data: history.map(h => h.product_price),
+                            borderColor: '#2271b1',
+                            backgroundColor: 'rgba(34, 113, 177, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                        },
+                        {
+                            label: 'Avg Competitor',
+                            data: history.map(h => h.avg_price),
+                            borderColor: '#d63638',
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.3,
+                        },
+                        {
+                            label: 'Lowest',
+                            data: history.map(h => h.lowest_price),
+                            borderColor: '#00a32a',
+                            borderDash: [2, 2],
+                            fill: false,
+                            tension: 0.3,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    },
+                    scales: {
+                        y: { beginAtZero: false, title: { display: true, text: 'Price' } }
+                    }
+                }
+            });
+        }
+
+        // ─── Side-by-Side Comparison Overlay ────────────────────────────
+        showComparisonOverlay(selected, summary) {
+            const s = this.config.strings;
+            const productPrice = parseFloat(this.config.productPrice) || 0;
+
+            // Build comparison table
+            let rows = '';
+            const fields = [
+                { key: 'current_price', label: 'Price' },
+                { key: 'original_price', label: 'Original Price' },
+                { key: 'currency', label: 'Currency' },
+                { key: 'availability', label: 'Availability' },
+                { key: 'shipping_info', label: 'Shipping' },
+                { key: 'rating', label: 'Rating' },
+                { key: 'seller_name', label: 'Seller' },
+            ];
+
+            // Header row
+            let headerCols = `<th>Attribute</th>`;
+            if (productPrice > 0) headerCols += `<th>${this.esc(s.yourProduct)}</th>`;
+            selected.forEach(c => { headerCols += `<th>${this.esc(c.name?.substring(0, 25))}</th>`; });
+
+            fields.forEach(f => {
+                let row = `<td><strong>${this.esc(f.label)}</strong></td>`;
+                if (productPrice > 0) {
+                    if (f.key === 'current_price') {
+                        row += `<td>${this.config.productCurrency} ${productPrice}</td>`;
+                    } else {
+                        row += `<td>–</td>`;
+                    }
+                }
+                selected.forEach(c => {
+                    const val = c[f.key];
+                    if (f.key === 'current_price' && val) {
+                        const cls = this.getPriceClass(val, summary.avg_price);
+                        row += `<td class="${cls}">${c.currency || ''} ${val}</td>`;
+                    } else {
+                        row += `<td>${val ? this.esc(String(val)) : '–'}</td>`;
+                    }
+                });
+                rows += `<tr>${row}</tr>`;
+            });
+
+            // Features row
+            let featRow = `<td><strong>Features</strong></td>`;
+            if (productPrice > 0) featRow += `<td>–</td>`;
+            selected.forEach(c => {
+                const feats = (c.features || []).slice(0, 5).map(f => this.esc(f)).join('<br>');
+                featRow += `<td>${feats || '–'}</td>`;
+            });
+            rows += `<tr>${featRow}</tr>`;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'pr-comparison-overlay';
+            overlay.innerHTML = `
+                <div class="pr-comparison-modal">
+                    <div class="pr-comparison-modal__header">
+                        <h3>${this.esc(s.comparisonTitle)}</h3>
+                        <button type="button" class="pr-comparison-modal__close">&times;</button>
+                    </div>
+                    <div class="pr-comparison-modal__body">
+                        <table class="pr-comparison-table">
+                            <thead><tr>${headerCols}</tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            overlay.querySelector('.pr-comparison-modal__close').addEventListener('click', () => {
+                overlay.remove();
+            });
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) overlay.remove();
+            });
+        }
+
+        // ─── Fetch AI Copy ──────────────────────────────────────────────
+        fetchCopy(reportId, tone) {
+            const s = this.config.strings;
+            const output = this.root.querySelector('.pr-copywriter__output');
+            const btn = this.root.querySelector('.pr-btn-copywriter');
+            if (!output || !btn) return;
+
+            btn.disabled = true;
+            output.innerHTML = `
+                <div class="pr-recommendations__loading">
+                    <div class="pr-progress__spinner"></div>
+                    <p>${this.esc(s.copyLoading)}</p>
+                </div>
+            `;
+
+            this.ajax('pr_generate_copy', { report_id: reportId, tone })
+                .then(data => {
+                    const copy = data.copy || {};
+                    output.innerHTML = `
+                        <div class="pr-copy-result">
+                            <h4>${this.esc(s.copyTitle)}</h4>
+                            <div class="pr-copy-result__section">
+                                <label>Title</label>
+                                <p class="pr-copy-result__title">${this.esc(copy.title)}</p>
+                            </div>
+                            <div class="pr-copy-result__section">
+                                <label>Short Description</label>
+                                <p>${this.esc(copy.short_description)}</p>
+                            </div>
+                            <div class="pr-copy-result__section">
+                                <label>Full Description</label>
+                                <div class="pr-copy-result__full">${copy.full_description || ''}</div>
+                            </div>
+                            ${copy.seo_keywords?.length ? `
+                                <div class="pr-copy-result__section">
+                                    <label>SEO Keywords</label>
+                                    <p>${copy.seo_keywords.map(k => `<span class="pr-tag">${this.esc(k)}</span>`).join(' ')}</p>
+                                </div>
+                            ` : ''}
+                            <div class="pr-copy-result__actions">
+                                <button type="button" class="button button-primary pr-btn-apply-copy">
+                                    ${this.esc(s.applyCopy)}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    // Bind apply button
+                    const applyBtn = output.querySelector('.pr-btn-apply-copy');
+                    if (applyBtn) {
+                        applyBtn.addEventListener('click', () => {
+                            this.applyCopy(copy);
+                        });
+                    }
+                })
+                .catch(() => {
+                    output.innerHTML = `<p class="pr-recommendations__error">${this.esc(s.copyFailed)}</p>`;
+                })
+                .finally(() => { btn.disabled = false; });
+        }
+
+        // ─── Apply Copy to WP editor ────────────────────────────────────
+        applyCopy(copy) {
+            const s = this.config.strings;
+
+            // Apply title
+            const titleField = document.getElementById('title');
+            if (titleField && copy.title) {
+                this.state.originalDescription = this.state.originalDescription || titleField.value;
+                titleField.value = copy.title;
+            }
+
+            // Apply to excerpt
+            const excerptField = document.getElementById('excerpt');
+            if (excerptField && copy.short_description) {
+                excerptField.value = copy.short_description;
+            }
+
+            // Apply to the content editor (TinyMCE or textarea)
+            if (copy.full_description) {
+                if (typeof tinymce !== 'undefined' && tinymce.get('content')) {
+                    tinymce.get('content').setContent(copy.full_description);
+                } else {
+                    const contentArea = document.getElementById('content');
+                    if (contentArea) contentArea.value = copy.full_description;
+                }
+            }
+
+            // Show success notice
+            const output = this.root.querySelector('.pr-copywriter__output');
+            if (output) {
+                const notice = document.createElement('div');
+                notice.className = 'pr-notice pr-notice--success';
+                notice.textContent = s.copyApplied;
+                output.prepend(notice);
+                setTimeout(() => notice.remove(), 3000);
+            }
         }
 
         esc(str) {
