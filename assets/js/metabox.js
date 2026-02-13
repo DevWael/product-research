@@ -141,6 +141,12 @@
             const summary = data.summary || {};
             const competitors = data.competitors || [];
             const recommendations = report.recommendations || [];
+
+            // Update price history from server response so the chart
+            // reflects the latest snapshot without a page refresh.
+            if (report.price_history && Array.isArray(report.price_history)) {
+                this.config.priceHistory = report.price_history;
+            }
             const bookmarkedUrls = this.config.bookmarkedUrls || [];
 
             let html = `<div class="pr-results">`;
@@ -192,10 +198,19 @@
             if (competitors.length) {
                 html += `<div class="pr-competitors">`;
                 competitors.forEach((comp, i) => {
-                    const priceClass = this.getPriceClass(comp.current_price, summary.avg_price);
+                    const displayPrice = comp.converted_price ?? comp.current_price;
+                    const priceClass = this.getPriceClass(displayPrice, summary.avg_price);
                     const isBookmarked = bookmarkedUrls.includes(comp.url);
                     const bmClass = isBookmarked ? 'pr-bookmark--active' : '';
                     const bmLabel = isBookmarked ? s.bookmarked : s.bookmark;
+                    const isFailed = comp.conversion_status === 'failed';
+                    const failedIndicator = isFailed ? '<span class="pr-conversion-warn" title="Currency conversion failed"> [!]</span>' : '';
+                    // Show converted price as primary; original as secondary when currencies differ
+                    const showDual = comp.converted_price && comp.store_currency && comp.currency !== comp.store_currency;
+                    const priceLabel = showDual
+                        ? `${this.esc(comp.store_currency || '')} ${parseFloat(comp.converted_price).toFixed(2)}${failedIndicator}
+                           <span class="pr-card__price-original">${this.esc(comp.currency || '')} ${this.esc(String(comp.current_price || ''))}</span>`
+                        : `${this.esc(comp.currency || '')} ${this.esc(String(comp.current_price || ''))}${failedIndicator}`;
                     html += `
                         <div class="pr-card pr-card--collapsed" data-index="${i}">
                             <div class="pr-card__header" role="button">
@@ -204,7 +219,7 @@
                                 </label>
                                 <span class="pr-card__name">${this.esc(comp.name)}</span>
                                 <span class="pr-card__price ${priceClass}">
-                                    ${comp.currency} ${comp.current_price}
+                                    ${priceLabel}
                                 </span>
                                 <button type="button" class="pr-bookmark ${bmClass}" data-url="${this.escAttr(comp.url)}" title="${this.esc(bmLabel)}" onclick="event.stopPropagation()">
                                     ${isBookmarked ? '★' : '☆'}
@@ -219,6 +234,7 @@
                                     ${comp.seller_name ? `<p><strong>Seller:</strong> ${this.esc(comp.seller_name)}</p>` : ''}
                                     ${comp.rating ? `<p><strong>Rating:</strong> ${comp.rating}/5</p>` : ''}
                                     ${comp.original_price ? `<p><strong>Original Price:</strong> ${comp.currency} ${comp.original_price}</p>` : ''}
+                                    ${showDual ? `<p><strong>Original Currency Price:</strong> ${comp.currency} ${comp.current_price}</p>` : ''}
                                 </div>
                                 ${this.renderVariations(comp.variations || [])}
                                 ${this.renderFeatures(comp.features || [])}
@@ -689,10 +705,10 @@
         // ─── Price Chart (HTML container) ───────────────────────────────
         renderPriceChart(competitors, summary) {
             const s = this.config.strings;
-            const prices = competitors.filter(c => c.current_price > 0).map(c => ({
+            const prices = competitors.filter(c => (c.converted_price ?? c.current_price) > 0 && c.conversion_status !== 'failed').map(c => ({
                 name: c.name,
-                price: parseFloat(c.current_price),
-                currency: c.currency || ''
+                price: parseFloat(c.converted_price ?? c.current_price),
+                currency: c.store_currency || c.currency || ''
             }));
 
             if (!prices.length) {
@@ -705,7 +721,7 @@
                 prices.unshift({
                     name: s.yourProduct,
                     price: productPrice,
-                    currency: this.config.productCurrency || ''
+                    currency: this.config.productCurrencyCode || ''
                 });
             }
 
@@ -737,8 +753,9 @@
                 items.push({ label: s.yourProduct, price: productPrice, isOwn: true });
             }
             competitors.forEach(c => {
-                if (c.current_price > 0) {
-                    items.push({ label: c.name?.substring(0, 20), price: parseFloat(c.current_price), isOwn: false });
+                const price = parseFloat(c.converted_price ?? c.current_price);
+                if (price > 0 && c.conversion_status !== 'failed') {
+                    items.push({ label: c.name?.substring(0, 20), price: price, isOwn: false });
                 }
             });
 
@@ -855,6 +872,8 @@
             let rows = '';
             const fields = [
                 { key: 'current_price', label: 'Price' },
+                { key: 'converted_price', label: 'Converted Price' },
+                { key: 'store_currency', label: 'Store Currency' },
                 { key: 'original_price', label: 'Original Price' },
                 { key: 'currency', label: 'Currency' },
                 { key: 'availability', label: 'Availability' },
@@ -873,6 +892,10 @@
                 if (productPrice > 0) {
                     if (f.key === 'current_price') {
                         row += `<td>${this.config.productCurrency} ${productPrice}</td>`;
+                    } else if (f.key === 'converted_price') {
+                        row += `<td>${this.config.productCurrencyCode || ''} ${productPrice}</td>`;
+                    } else if (f.key === 'store_currency') {
+                        row += `<td>${this.config.productCurrencyCode || ''}</td>`;
                     } else {
                         row += `<td>–</td>`;
                     }
@@ -881,7 +904,11 @@
                     const val = c[f.key];
                     if (f.key === 'current_price' && val) {
                         const cls = this.getPriceClass(val, summary.avg_price);
-                        row += `<td class="${cls}">${c.currency || ''} ${val}</td>`;
+                        row += `<td class="${cls}">${this.esc(c.currency || '')} ${this.esc(String(val))}</td>`;
+                    } else if (f.key === 'converted_price' && val) {
+                        const isFailed = c.conversion_status === 'failed';
+                        const warn = isFailed ? ' <span class="pr-conversion-warn">[!]</span>' : '';
+                        row += `<td>${this.esc(c.store_currency || '')} ${parseFloat(val).toFixed(2)}${warn}</td>`;
                     } else {
                         row += `<td>${val ? this.esc(String(val)) : '–'}</td>`;
                     }

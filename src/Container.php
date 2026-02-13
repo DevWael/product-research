@@ -16,6 +16,7 @@ use ProductResearch\API\TavilyClient;
 use ProductResearch\Cache\CacheManager;
 use ProductResearch\Export\ReportExporter;
 use ProductResearch\Report\ReportRepository;
+use ProductResearch\Currency\CurrencyConverter;
 use ProductResearch\Security\Encryption;
 use ProductResearch\Security\Logger;
 /**
@@ -123,13 +124,18 @@ final class Container
 
         $this->set(ProductListColumns::class, static fn(): ProductListColumns => new ProductListColumns());
 
+        $this->set(CurrencyConverter::class, static function (): CurrencyConverter {
+            return new CurrencyConverter(function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : 'USD');
+        });
+
         $this->set(ResearchHandler::class, function (self $c): ResearchHandler {
             return new ResearchHandler(
                 $c->get(TavilyClient::class),
                 $c->get(ContentSanitizer::class),
                 $c->get(ReportRepository::class),
                 $c->get(CacheManager::class),
-                $c->get(Logger::class)
+                $c->get(Logger::class),
+                $c->get(CurrencyConverter::class)
             );
         });
 

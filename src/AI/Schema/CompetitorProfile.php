@@ -57,6 +57,12 @@ final class CompetitorProfile
     #[SchemaProperty(description: 'Product image URLs', required: false)]
     public array $images = [];
 
+    // ─── Currency normalization (set at finalization, NOT part of AI schema) ──
+    public ?float  $convertedPrice         = null;
+    public ?float  $convertedOriginalPrice = null;
+    public ?string $storeCurrency          = null;
+    public ?string $conversionStatus       = null;
+
     /**
      * Convert to array for JSON storage.
      *
@@ -83,8 +89,12 @@ final class CompetitorProfile
                 },
                 $this->variations
             ),
-            'features'      => $this->features,
-            'images'        => $this->images,
+            'features'          => $this->features,
+            'images'            => $this->images,
+            'converted_price'          => $this->convertedPrice,
+            'converted_original_price' => $this->convertedOriginalPrice,
+            'store_currency'           => $this->storeCurrency,
+            'conversion_status'        => $this->conversionStatus,
         ];
     }
 }

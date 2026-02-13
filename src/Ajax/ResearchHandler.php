@@ -12,6 +12,7 @@ use ProductResearch\AI\Schema\RecommendationOutput;
 use ProductResearch\API\ContentSanitizer;
 use ProductResearch\API\TavilyClient;
 use ProductResearch\Cache\CacheManager;
+use ProductResearch\Currency\CurrencyConverter;
 use ProductResearch\Report\ReportPostType;
 use ProductResearch\Report\ReportRepository;
 use ProductResearch\Security\Logger;
@@ -34,19 +35,22 @@ final class ResearchHandler
     private ReportRepository $reports;
     private CacheManager $cache;
     private Logger $logger;
+    private CurrencyConverter $converter;
 
     public function __construct(
         TavilyClient $tavily,
         ContentSanitizer $sanitizer,
         ReportRepository $reports,
         CacheManager $cache,
-        Logger $logger
+        Logger $logger,
+        CurrencyConverter $converter
     ) {
         $this->tavily    = $tavily;
         $this->sanitizer = $sanitizer;
         $this->reports   = $reports;
         $this->cache     = $cache;
         $this->logger    = $logger;
+        $this->converter = $converter;
     }
 
     /**
@@ -449,7 +453,13 @@ final class ResearchHandler
         // Build structured report matching the format expected by the JS metabox.
         // The async workflow path (ReportNode) does this automatically;
         // the sequential AJAX path must do it here.
-        $prices  = array_filter(array_column($profiles, 'current_price'));
+
+        // --- Currency normalization ---
+        $storeCurrency = $this->converter->getStoreCurrency();
+        $this->converter->normalizeProfiles($profiles, $storeCurrency);
+
+        $prices = CurrencyConverter::extractValidPricesFromArrays($profiles);
+
         $summary = [
             'total_competitors' => count($profiles),
             'lowest_price'      => ! empty($prices) ? round(min($prices), 2) : 0,
@@ -492,12 +502,13 @@ final class ResearchHandler
         $priceHistory = get_post_meta($report['product_id'], '_pr_price_history', true);
         $priceHistory = is_array($priceHistory) ? $priceHistory : [];
         $priceHistory[] = [
-            'date'          => wp_date('Y-m-d'),
-            'product_price' => $productPrice,
-            'avg_price'     => $summary['avg_price'],
-            'lowest_price'  => $summary['lowest_price'],
-            'highest_price' => $summary['highest_price'],
-            'competitors'   => count($profiles),
+            'date'           => wp_date('Y-m-d'),
+            'product_price'  => $productPrice,
+            'avg_price'      => $summary['avg_price'],
+            'lowest_price'   => $summary['lowest_price'],
+            'highest_price'  => $summary['highest_price'],
+            'competitors'    => count($profiles),
+            'store_currency' => $storeCurrency,
         ];
         // Cap at 20 entries
         $priceHistory = array_slice($priceHistory, -20);
@@ -531,6 +542,7 @@ final class ResearchHandler
             'report'          => $structuredReport,
             'recommendations' => $recommendations,
             'failed_urls'     => $report['error_details']['failed_urls'] ?? [],
+            'price_history'   => $priceHistory,
         ]);
     }
 
@@ -608,12 +620,17 @@ final class ResearchHandler
 
         $recommendations = get_post_meta($reportId, '_pr_recommendations', true);
 
+        // Include price history so the chart updates when loading any report
+        $priceHistory = get_post_meta($report['product_id'], '_pr_price_history', true);
+        $priceHistory = is_array($priceHistory) ? $priceHistory : [];
+
         wp_send_json_success([
             'report_id'       => $reportId,
             'status'          => $report['status'],
             'report'          => $report['analysis_result'] ?? [],
             'recommendations' => is_array($recommendations) ? $recommendations : [],
             'created'         => $report['created_at'],
+            'price_history'   => $priceHistory,
         ]);
     }
 
@@ -852,17 +869,28 @@ final class ResearchHandler
     private function buildKeyFindings(array $profiles): array
     {
         $findings = [];
-        $prices   = array_filter(array_column($profiles, 'current_price'));
+
+        // Use converted prices, excluding failed and zero
+        $prices = CurrencyConverter::extractValidPricesFromArrays($profiles);
 
         if (! empty($prices)) {
-            $currency   = $profiles[0]['currency'] ?? '';
-            $findings[] = sprintf(
+            $storeCurrency = $profiles[0]['store_currency'] ?? ($profiles[0]['currency'] ?? '');
+            $findings[]    = sprintf(
                 /* translators: %1$s: currency, %2$.2f: lowest price, %3$.2f: highest price, %4$d: competitor count */
                 __('Price range: %1$s %2$.2f – %1$s %3$.2f across %4$d competitors', 'product-research'),
-                $currency,
+                $storeCurrency,
                 min($prices),
                 max($prices),
                 count($profiles)
+            );
+        }
+
+        // Failed conversion warning
+        $failed = array_filter($profiles, static fn(array $p): bool => ($p['conversion_status'] ?? '') === 'failed');
+        if (! empty($failed)) {
+            $findings[] = sprintf(
+                __('[!] %d competitor(s) could not have their prices converted — excluded from averages', 'product-research'),
+                count($failed)
             );
         }
 

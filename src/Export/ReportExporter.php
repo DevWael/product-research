@@ -52,6 +52,9 @@ final class ReportExporter
             'Current Price',
             'Original Price',
             'Currency',
+            'Converted Price',
+            'Store Currency',
+            'Conversion Status',
             'URL',
             'Availability',
             'Shipping',
@@ -68,6 +71,9 @@ final class ReportExporter
                 $comp['current_price'] ?? '',
                 $comp['original_price'] ?? '',
                 $comp['currency'] ?? '',
+                $comp['converted_price'] ?? '',
+                $comp['store_currency'] ?? '',
+                $comp['conversion_status'] ?? 'n/a',
                 $comp['url'] ?? '',
                 $comp['availability'] ?? '',
                 $comp['shipping_info'] ?? '',
@@ -147,11 +153,19 @@ final class ReportExporter
         // Competitors table
         if (! empty($competitors)) {
             echo '<h2>' . esc_html__('Competitor Details', 'product-research') . '</h2>';
-            echo '<table><thead><tr><th>' . esc_html__('Product', 'product-research') . '</th><th>' . esc_html__('Price', 'product-research') . '</th><th>' . esc_html__('Availability', 'product-research') . '</th><th>' . esc_html__('Rating', 'product-research') . '</th><th>' . esc_html__('Seller', 'product-research') . '</th></tr></thead><tbody>';
+            echo '<table><thead><tr><th>' . esc_html__('Product', 'product-research') . '</th><th>' . esc_html__('Price', 'product-research') . '</th><th>' . esc_html__('Converted Price', 'product-research') . '</th><th>' . esc_html__('Availability', 'product-research') . '</th><th>' . esc_html__('Rating', 'product-research') . '</th><th>' . esc_html__('Seller', 'product-research') . '</th></tr></thead><tbody>';
             foreach ($competitors as $comp) {
+                $conversionWarn = ($comp['conversion_status'] ?? '') === 'failed' ? ' <span style="color:red">[!]</span>' : '';
+                $convertedCol = '';
+                if (! empty($comp['converted_price']) && ($comp['store_currency'] ?? '') !== ($comp['currency'] ?? '')) {
+                    $convertedCol = esc_html(($comp['store_currency'] ?? '') . ' ' . number_format((float) ($comp['converted_price'] ?? 0), 2)) . $conversionWarn;
+                } else {
+                    $convertedCol = '—';
+                }
                 echo '<tr>';
                 echo '<td>' . esc_html($comp['name'] ?? '') . '</td>';
                 echo '<td>' . esc_html(($comp['currency'] ?? '') . ' ' . ($comp['current_price'] ?? '')) . '</td>';
+                echo '<td>' . $convertedCol . '</td>';
                 echo '<td>' . esc_html($comp['availability'] ?? '—') . '</td>';
                 echo '<td>' . esc_html(($comp['rating'] ?? '—') . (isset($comp['rating']) ? '/5' : '')) . '</td>';
                 echo '<td>' . esc_html($comp['seller_name'] ?? '—') . '</td>';

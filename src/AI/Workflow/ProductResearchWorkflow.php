@@ -12,6 +12,7 @@ use ProductResearch\AI\Workflow\Nodes\SearchNode;
 use ProductResearch\API\ContentSanitizer;
 use ProductResearch\API\TavilyClient;
 use ProductResearch\Cache\CacheManager;
+use ProductResearch\Currency\CurrencyConverter;
 use ProductResearch\Report\ReportRepository;
 use ProductResearch\Security\Logger;
 
@@ -27,19 +28,22 @@ final class ProductResearchWorkflow extends Workflow
     private CacheManager $cache;
     private ReportRepository $reports;
     private Logger $logger;
+    private CurrencyConverter $converter;
 
     public function __construct(
         TavilyClient $tavily,
         ContentSanitizer $sanitizer,
         CacheManager $cache,
         ReportRepository $reports,
-        Logger $logger
+        Logger $logger,
+        CurrencyConverter $converter
     ) {
         $this->tavily    = $tavily;
         $this->sanitizer = $sanitizer;
         $this->cache     = $cache;
         $this->reports   = $reports;
         $this->logger    = $logger;
+        $this->converter = $converter;
     }
 
     /**
@@ -53,7 +57,7 @@ final class ProductResearchWorkflow extends Workflow
             new SearchNode($this->tavily, $this->cache, $this->reports, $this->logger),
             new ExtractNode($this->tavily, $this->sanitizer, $this->cache, $this->reports, $this->logger),
             new AnalyzeNode($this->reports, $this->logger),
-            new ReportNode($this->reports),
+            new ReportNode($this->reports, $this->converter),
         ];
     }
 }

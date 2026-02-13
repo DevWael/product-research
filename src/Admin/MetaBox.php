@@ -60,6 +60,7 @@ final class MetaBox
         $product       = wc_get_product($productId);
         $productPrice  = $product ? (float) $product->get_price() : 0.0;
         $productCurrency = $product ? get_woocommerce_currency_symbol() : '';
+        $productCurrencyCode = $product && function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : '';
 
         // Price history snapshots
         $priceHistory = get_post_meta($productId, '_pr_price_history', true);
@@ -70,17 +71,18 @@ final class MetaBox
         $bookmarkedUrls = is_array($bookmarkedUrls) ? $bookmarkedUrls : [];
 
         $jsData = [
-            'productId'       => $productId,
-            'inProgress'      => $inProgress,
-            'latestReport'    => $latestReport,
-            'history'         => $history,
-            'productPrice'    => $productPrice,
-            'productCurrency' => $productCurrency,
-            'priceHistory'    => $priceHistory,
-            'bookmarkedUrls'  => $bookmarkedUrls,
-            'nonce'           => wp_create_nonce('pr_research_nonce'),
-            'ajaxUrl'         => admin_url('admin-ajax.php'),
-            'strings'         => $this->getStrings(),
+            'productId'           => $productId,
+            'inProgress'          => $inProgress,
+            'latestReport'        => $latestReport,
+            'history'             => $history,
+            'productPrice'        => $productPrice,
+            'productCurrency'     => $productCurrency,
+            'productCurrencyCode' => $productCurrencyCode,
+            'priceHistory'        => $priceHistory,
+            'bookmarkedUrls'      => $bookmarkedUrls,
+            'nonce'               => wp_create_nonce('pr_research_nonce'),
+            'ajaxUrl'             => admin_url('admin-ajax.php'),
+            'strings'             => $this->getStrings(),
         ];
 
         printf(

@@ -9,6 +9,7 @@ use NeuronAI\Workflow\StopEvent;
 use NeuronAI\Workflow\WorkflowState;
 use ProductResearch\AI\Schema\CompetitorProfile;
 use ProductResearch\AI\Workflow\Events\AnalysisCompletedEvent;
+use ProductResearch\Currency\CurrencyConverter;
 use ProductResearch\Report\ReportPostType;
 use ProductResearch\Report\ReportRepository;
 
@@ -21,10 +22,12 @@ use ProductResearch\Report\ReportRepository;
 final class ReportNode extends Node
 {
     private ReportRepository $reports;
+    private CurrencyConverter $converter;
 
-    public function __construct(ReportRepository $reports)
+    public function __construct(ReportRepository $reports, CurrencyConverter $converter)
     {
-        $this->reports = $reports;
+        $this->reports   = $reports;
+        $this->converter = $converter;
     }
 
     public function __invoke(AnalysisCompletedEvent $event, WorkflowState $state): StopEvent
@@ -32,6 +35,11 @@ final class ReportNode extends Node
         $reportId = $state->get('report_id');
 
         $profiles = $event->competitorProfiles;
+
+        // Normalize all prices to store currency before building summary.
+        $storeCurrency = $this->converter->getStoreCurrency();
+        $this->converter->normalizeProfileObjects($profiles, $storeCurrency);
+
         $summary  = $this->buildSummary($profiles, $state);
 
         $report = [
@@ -67,10 +75,11 @@ final class ReportNode extends Node
             return $this->emptySummary();
         }
 
-        $prices = array_map(
-            static fn(CompetitorProfile $p): float => $p->currentPrice,
-            $profiles
-        );
+        $prices = CurrencyConverter::extractValidPricesFromObjects($profiles);
+
+        if (empty($prices)) {
+            return $this->emptySummary();
+        }
 
         $lowestPrice  = min($prices);
         $highestPrice = max($prices);
@@ -96,9 +105,11 @@ final class ReportNode extends Node
     private function buildPriceRangeData(array $profiles): array
     {
         return array_map(static fn(CompetitorProfile $p): array => [
-            'name'  => $p->name,
-            'price' => $p->currentPrice,
-            'url'   => $p->url,
+            'name'              => $p->name,
+            'price'             => $p->convertedPrice ?? $p->currentPrice,
+            'url'               => $p->url,
+            'converted_price'   => $p->convertedPrice,
+            'conversion_status' => $p->conversionStatus,
         ], $profiles);
     }
 
@@ -135,14 +146,27 @@ final class ReportNode extends Node
     private function generateKeyFindings(array $profiles, WorkflowState $state): array
     {
         $findings = [];
-        $prices   = array_map(fn(CompetitorProfile $p): float => $p->currentPrice, $profiles);
 
-        $findings[] = sprintf(
-            __('Price range: %s – %s across %d competitors', 'product-research'),
-            $this->formatPrice(min($prices), $profiles[0]->currency),
-            $this->formatPrice(max($prices), $profiles[0]->currency),
-            count($profiles)
-        );
+        $prices = CurrencyConverter::extractValidPricesFromObjects($profiles);
+
+        if (! empty($prices)) {
+            $storeCurrency = $profiles[0]->storeCurrency ?? $profiles[0]->currency;
+            $findings[]    = sprintf(
+                __('Price range: %s – %s across %d competitors', 'product-research'),
+                $this->formatPrice(min($prices), $storeCurrency),
+                $this->formatPrice(max($prices), $storeCurrency),
+                count($profiles)
+            );
+        }
+
+        // Failed conversion warning
+        $failed = array_filter($profiles, static fn(CompetitorProfile $p): bool => $p->conversionStatus === 'failed');
+        if (! empty($failed)) {
+            $findings[] = sprintf(
+                __('[!] %d competitor(s) could not have their prices converted — excluded from averages', 'product-research'),
+                count($failed)
+            );
+        }
 
         // Check for discounted products
         $discounted = array_filter($profiles, static fn(CompetitorProfile $p): bool => $p->originalPrice !== null);
