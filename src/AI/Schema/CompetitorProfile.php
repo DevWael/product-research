@@ -13,6 +13,9 @@ use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
  * Neuron AI generates JSON schema from these PHP attributes,
  * validates the LLM response, and retries up to 3 times
  * if validation fails. Replaces manual JSON parsing entirely.
+ *
+ * @package ProductResearch\AI\Schema
+ * @since   1.0.0
  */
 final class CompetitorProfile
 {
@@ -39,8 +42,9 @@ final class CompetitorProfile
     #[SchemaProperty(description: 'Shipping details and costs', required: false)]
     public ?string $shippingInfo = null;
 
-    #[SchemaProperty(description: 'Store or seller name', required: false)]
-    public ?string $sellerName = null;
+    #[SchemaProperty(description: 'Store or seller name', required: true)]
+    #[NotBlank]
+    public string $sellerName = '';
 
     #[SchemaProperty(description: 'Product rating from 0 to 5', required: false)]
     public ?float $rating = null;
@@ -58,13 +62,26 @@ final class CompetitorProfile
     public array $images = [];
 
     // ─── Currency normalization (set at finalization, NOT part of AI schema) ──
+
+    /** @var float|null Price converted to the store's base currency. */
     public ?float  $convertedPrice         = null;
+
+    /** @var float|null Original price converted to the store's base currency. */
     public ?float  $convertedOriginalPrice = null;
+
+    /** @var string|null The store's base currency code that prices were converted to. */
     public ?string $storeCurrency          = null;
+
+    /** @var string|null Conversion status: 'converted', 'same_currency', 'failed', or 'skipped'. */
     public ?string $conversionStatus       = null;
 
     /**
      * Convert to array for JSON storage.
+     *
+     * Includes both AI-extracted fields and currency normalization fields
+     * set during report finalization by {@see ReportNode}.
+     *
+     * @since 1.0.0
      *
      * @return array<string, mixed>
      */

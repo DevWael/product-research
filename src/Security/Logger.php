@@ -9,6 +9,9 @@ namespace ProductResearch\Security;
  *
  * Strips API keys, auth headers, raw response bodies,
  * and internal URLs with query params before writing.
+ *
+ * @package ProductResearch\Security
+ * @since   1.0.0
  */
 final class Logger
 {
@@ -16,6 +19,12 @@ final class Logger
 
     /**
      * Log a sanitized message.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $message Raw log message (will be sanitized).
+     * @param  string $level   Log level: 'error', 'warning', 'info'.
+     * @return void
      */
     public function log(string $message, string $level = 'error'): void
     {
@@ -25,6 +34,14 @@ final class Logger
 
     /**
      * Strip sensitive data from log messages.
+     *
+     * Redacts API keys (32+ char alphanumeric strings), Authorization
+     * headers, URLs with query parameters, and truncates long messages.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $message Raw message.
+     * @return string Sanitized message safe for error_log().
      */
     public function sanitize(string $message): string
     {

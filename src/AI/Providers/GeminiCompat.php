@@ -19,6 +19,9 @@ use NeuronAI\Providers\Gemini\Gemini;
  * For these models, the system prompt is prepended to the conversation as a
  * user message, and structured output is achieved by instructing the model
  * to respond in JSON matching the given schema.
+ *
+ * @package ProductResearch\AI\Providers
+ * @since   1.0.0
  */
 final class GeminiCompat extends Gemini
 {
@@ -33,6 +36,12 @@ final class GeminiCompat extends Gemini
 
     /**
      * Whether the current model is limited (no system_instruction / response_schema).
+     *
+     * Checks whether the model name starts with any of the known limited prefixes.
+     *
+     * @since 1.0.0
+     *
+     * @return bool True if the model lacks system_instruction support.
      */
     private function isLimitedModel(): bool
     {
@@ -48,7 +57,13 @@ final class GeminiCompat extends Gemini
     /**
      * Override to prepend system prompt into conversation for limited models.
      *
-     * @param array<Message> $messages
+     * For limited models, the system instruction is removed from the provider
+     * config and inserted as the first user message in the conversation.
+     *
+     * @since 1.0.0
+     *
+     * @param  array<Message> $messages The conversation messages.
+     * @return Message        The LLM response.
      */
     public function chat(array $messages): Message
     {
@@ -72,8 +87,12 @@ final class GeminiCompat extends Gemini
      * to the last user message and let chat() handle the rest.
      * The Agent-level processResponse() will extract and deserialize the JSON.
      *
-     * @param array<Message> $messages
-     * @param array<string, mixed> $response_format
+     * @since 1.0.0
+     *
+     * @param  array<Message>       $messages        The conversation messages.
+     * @param  string               $class           FQCN of the structured output class.
+     * @param  array<string, mixed> $response_format JSON schema for the expected output.
+     * @return Message              The LLM response containing JSON.
      */
     public function structured(array $messages, string $class, array $response_format): Message
     {

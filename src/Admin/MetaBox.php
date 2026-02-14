@@ -12,11 +12,21 @@ use ProductResearch\Report\ReportRepository;
  *
  * Displays first-run empty state, in-progress status, results,
  * and report history. Scaffolds the container for JS rendering.
+ *
+ * @package ProductResearch\Admin
+ * @since   1.0.0
  */
 final class MetaBox
 {
     private ReportRepository $reports;
 
+    /**
+     * Create the metabox.
+     *
+     * @since 1.0.0
+     *
+     * @param ReportRepository $reports Report persistence layer.
+     */
     public function __construct(ReportRepository $reports)
     {
         $this->reports = $reports;
@@ -24,6 +34,12 @@ final class MetaBox
 
     /**
      * Register the metabox.
+     *
+     * Adds a high-priority metabox on product edit screens.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     public function register(): void
     {
@@ -39,6 +55,15 @@ final class MetaBox
 
     /**
      * Render the metabox HTML.
+     *
+     * Bootstraps the JS application by outputting a root container
+     * with a JSON-encoded data-config attribute containing report
+     * data, product info, and translatable strings.
+     *
+     * @since 1.0.0
+     *
+     * @param  \WP_Post $post Current product post object.
+     * @return void
      */
     public function render(\WP_Post $post): void
     {
@@ -51,7 +76,7 @@ final class MetaBox
         $latestReport = $this->reports->getLatest($productId);
 
         // Get report history
-        $history = $this->reports->findByProduct($productId, 5);
+        $history = $this->reports->findByProduct($productId, 20);
 
         // Pass data to JS
         wp_nonce_field('pr_research_nonce', 'pr_nonce');
@@ -94,7 +119,9 @@ final class MetaBox
     /**
      * Translatable UI strings for JS.
      *
-     * @return array<string, string>
+     * @since 1.0.0
+     *
+     * @return array<string, string> Key-value map of translation keys.
      */
     private function getStrings(): array
     {
@@ -158,6 +185,22 @@ final class MetaBox
             'comparisonTitle'     => __('Side-by-Side Comparison', 'product-research'),
             'selectToCompare'     => __('Select 2-3 competitors to compare.', 'product-research'),
             'closeComparison'     => __('Close', 'product-research'),
+            // History & delete strings
+            'deleteReport'        => __('Delete', 'product-research'),
+            'confirmDelete'       => __('Delete this report?', 'product-research'),
+            'confirmYes'          => __('Yes, delete', 'product-research'),
+            'confirmNo'           => __('Cancel', 'product-research'),
+            'deleteSuccess'       => __('Report deleted.', 'product-research'),
+            'deleteFailed'        => __('Failed to delete report.', 'product-research'),
+            'showMore'            => __('Show more', 'product-research'),
+            'showLess'            => __('Show less', 'product-research'),
+            // Bulk delete strings
+            'selectAll'           => __('Select all', 'product-research'),
+            'deleteSelected'      => __('Delete selected', 'product-research'),
+            'deleteAll'           => __('Delete all', 'product-research'),
+            'confirmDeleteSelected' => __('Delete selected reports?', 'product-research'),
+            'confirmDeleteAll'    => __('Delete ALL reports?', 'product-research'),
+            'noReportsSelected'   => __('No reports selected.', 'product-research'),
         ];
     }
 }

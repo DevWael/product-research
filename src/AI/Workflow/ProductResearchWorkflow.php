@@ -20,6 +20,10 @@ use ProductResearch\Security\Logger;
  * Product Research Workflow: Search → Extract → Analyze → Report.
  *
  * Orchestrates 4 Neuron AI workflow nodes with injected dependencies.
+ * Each node communicates via typed events emitted along the pipeline.
+ *
+ * @package ProductResearch\AI\Workflow
+ * @since   1.0.0
  */
 final class ProductResearchWorkflow extends Workflow
 {
@@ -30,6 +34,18 @@ final class ProductResearchWorkflow extends Workflow
     private Logger $logger;
     private CurrencyConverter $converter;
 
+    /**
+     * Create the workflow with all required service dependencies.
+     *
+     * @since 1.0.0
+     *
+     * @param TavilyClient      $tavily    HTTP client for Tavily Search & Extract APIs.
+     * @param ContentSanitizer  $sanitizer Cleans raw HTML/text before AI analysis.
+     * @param CacheManager      $cache     Transient-based cache for API responses.
+     * @param ReportRepository  $reports   Persistence layer for report CPT.
+     * @param Logger            $logger    Sanitized error logging.
+     * @param CurrencyConverter $converter Normalizes prices to the store's base currency.
+     */
     public function __construct(
         TavilyClient $tavily,
         ContentSanitizer $sanitizer,
@@ -49,7 +65,12 @@ final class ProductResearchWorkflow extends Workflow
     /**
      * Define the workflow node sequence.
      *
-     * @return array<Node>
+     * Returns nodes in execution order: Search → Extract → Analyze → Report.
+     * Each node receives its required dependencies at construction time.
+     *
+     * @since 1.0.0
+     *
+     * @return array<Node> Ordered list of workflow nodes.
      */
     protected function nodes(): array
     {

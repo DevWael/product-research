@@ -18,12 +18,20 @@ use ProductResearch\Security\Encryption;
  * AI agent for generating optimized product descriptions from competitor analysis.
  *
  * Duplicates provider logic from ProductAnalysisAgent (tech-spec acknowledged
- * trade-off: duplication vs. premature abstraction).
+ * trade-off: duplication vs. premature abstraction). Uses higher temperature
+ * (0.5) than the analysis agent for more creative copy generation.
+ *
+ * @package ProductResearch\AI\Agent
+ * @since   1.0.0
  */
 final class CopywriterAgent extends Agent
 {
     /**
-     * Configure the AI provider based on settings.
+     * Configure the AI provider based on the `pr_ai_provider` option.
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface Configured provider instance.
      */
     protected function provider(): AIProviderInterface
     {
@@ -38,6 +46,10 @@ final class CopywriterAgent extends Agent
 
     /**
      * Create the Z.AI (OpenAI-compatible) provider.
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface
      */
     private function createZaiProvider(): AIProviderInterface
     {
@@ -60,6 +72,10 @@ final class CopywriterAgent extends Agent
 
     /**
      * Create the Anthropic Claude provider.
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface
      */
     private function createAnthropicProvider(): AIProviderInterface
     {
@@ -80,7 +96,11 @@ final class CopywriterAgent extends Agent
     }
 
     /**
-     * Create the Google Gemini provider.
+     * Create the Google Gemini provider via {@see GeminiCompat}.
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface
      */
     private function createGeminiProvider(): AIProviderInterface
     {
@@ -103,6 +123,13 @@ final class CopywriterAgent extends Agent
 
     /**
      * System prompt for e-commerce product copywriting.
+     *
+     * Instructs the LLM to generate SEO-optimized titles, short excerpts,
+     * full HTML descriptions, keywords, and competitive advantages.
+     *
+     * @since 1.0.0
+     *
+     * @return string The full system prompt text.
      */
     public function instructions(): string
     {
@@ -135,6 +162,10 @@ final class CopywriterAgent extends Agent
 
     /**
      * Default structured output class for this agent.
+     *
+     * @since 1.0.0
+     *
+     * @return string Fully-qualified class name of {@see CopywriterOutput}.
      */
     public function outputClass(): string
     {

@@ -20,6 +20,9 @@ use ProductResearch\Security\Logger;
  *
  * Takes admin-filtered URLs, calls Tavily Extract, sanitizes content,
  * and emits clean data ready for AI analysis.
+ *
+ * @package ProductResearch\AI\Workflow\Nodes
+ * @since   1.0.0
  */
 final class ExtractNode extends Node
 {
@@ -29,6 +32,17 @@ final class ExtractNode extends Node
     private ReportRepository $reports;
     private Logger $logger;
 
+    /**
+     * Create the extraction node with required dependencies.
+     *
+     * @since 1.0.0
+     *
+     * @param TavilyClient     $tavily    Tavily API client.
+     * @param ContentSanitizer $sanitizer HTML/text cleaner.
+     * @param CacheManager     $cache     Transient-based cache.
+     * @param ReportRepository $reports   Report persistence.
+     * @param Logger           $logger    Sanitized logging.
+     */
     public function __construct(
         TavilyClient $tavily,
         ContentSanitizer $sanitizer,
@@ -43,6 +57,21 @@ final class ExtractNode extends Node
         $this->logger    = $logger;
     }
 
+    /**
+     * Execute the extraction step of the workflow.
+     *
+     * Limits URLs to `pr_max_competitors`, calls Tavily Extract,
+     * sanitizes each result via {@see ContentSanitizer}, and persists
+     * competitor data to the report.
+     *
+     * @since 1.0.0
+     *
+     * @param  SearchCompletedEvent $event Previous step output with URLs.
+     * @param  WorkflowState        $state Shared state (report_id, selected_urls).
+     * @return ExtractionCompletedEvent
+     *
+     * @throws \Throwable If the Tavily extract API call fails.
+     */
     public function __invoke(SearchCompletedEvent $event, WorkflowState $state): ExtractionCompletedEvent
     {
         $reportId    = $state->get('report_id');

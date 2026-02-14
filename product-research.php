@@ -13,6 +13,9 @@
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * WC requires at least: 7.0
+ *
+ * @package ProductResearch
+ * @since   1.0.0
  */
 
 declare(strict_types=1);
@@ -21,6 +24,14 @@ defined('ABSPATH') || exit;
 
 /**
  * Plugin constants.
+ *
+ * @since 1.0.0
+ *
+ * @var string PR_VERSION        Semantic version of the plugin.
+ * @var string PR_PLUGIN_FILE    Absolute path to the main plugin file.
+ * @var string PR_PLUGIN_DIR     Absolute path to the plugin directory (with trailing slash).
+ * @var string PR_PLUGIN_URL     URL to the plugin directory (with trailing slash).
+ * @var string PR_PLUGIN_BASENAME Plugin basename for hook registration (e.g. 'product-research/product-research.php').
  */
 define('PR_VERSION', '1.0.0');
 define('PR_PLUGIN_FILE', __FILE__);
@@ -30,6 +41,11 @@ define('PR_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
 /**
  * Check PHP version.
+ *
+ * Displays an admin notice and halts plugin loading if the server
+ * runs a PHP version below 8.1.
+ *
+ * @since 1.0.0
  */
 if (version_compare(PHP_VERSION, '8.1', '<')) {
     add_action('admin_notices', static function (): void {
@@ -43,6 +59,11 @@ if (version_compare(PHP_VERSION, '8.1', '<')) {
 
 /**
  * Load Composer autoloader.
+ *
+ * Displays an admin notice if the vendor directory is missing
+ * (i.e. `composer install` has not been run).
+ *
+ * @since 1.0.0
  */
 $autoloader = PR_PLUGIN_DIR . 'vendor/autoload.php';
 
@@ -60,6 +81,11 @@ require_once $autoloader;
 
 /**
  * Initialize the plugin on plugins_loaded to ensure WooCommerce is available.
+ *
+ * Bootstraps the service container and plugin orchestrator. Hooked at
+ * priority 20 to guarantee WooCommerce has loaded first.
+ *
+ * @since 1.0.0
  */
 add_action('plugins_loaded', static function (): void {
     if (! class_exists('WooCommerce')) {

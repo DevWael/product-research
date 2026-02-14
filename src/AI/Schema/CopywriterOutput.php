@@ -13,6 +13,9 @@ use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
  * Neuron AI generates JSON schema from these PHP attributes,
  * validates the LLM response, and retries up to 3 times
  * if validation fails.
+ *
+ * @package ProductResearch\AI\Schema
+ * @since   1.0.0
  */
 final class CopywriterOutput
 {
@@ -38,6 +41,8 @@ final class CopywriterOutput
 
     /**
      * Convert to array for JSON transport.
+     *
+     * @since 1.0.0
      *
      * @return array<string, mixed>
      */

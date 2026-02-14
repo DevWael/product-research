@@ -10,11 +10,21 @@ use ProductResearch\Report\ReportRepository;
  * Export service for generating CSV and PDF downloads from reports.
  *
  * PDF generation uses a simple HTML-to-PDF approach via browser print.
+ *
+ * @package ProductResearch\Export
+ * @since   1.0.0
  */
 final class ReportExporter
 {
     private ReportRepository $reports;
 
+    /**
+     * Create the exporter.
+     *
+     * @since 1.0.0
+     *
+     * @param ReportRepository $reports Report persistence layer.
+     */
     public function __construct(ReportRepository $reports)
     {
         $this->reports = $reports;
@@ -22,6 +32,13 @@ final class ReportExporter
 
     /**
      * Handle CSV export AJAX request.
+     *
+     * Streams a CSV file with competitor name, price, currency,
+     * converted price, URL, and features.
+     *
+     * @since 1.0.0
+     *
+     * @return void Outputs CSV and exits.
      */
     public function handleCsvExport(): void
     {
@@ -90,6 +107,13 @@ final class ReportExporter
 
     /**
      * Handle PDF export — outputs HTML for browser print.
+     *
+     * Renders a styled HTML page designed for the browser's
+     * native print dialog (Ctrl+P / Cmd+P).
+     *
+     * @since 1.0.0
+     *
+     * @return void Outputs HTML and exits.
      */
     public function handlePdfExport(): void
     {
@@ -181,6 +205,12 @@ final class ReportExporter
 
     /**
      * Verify nonce and capability.
+     *
+     * Terminates with a 403 JSON error if verification fails.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     private function verifyRequest(): void
     {

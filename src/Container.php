@@ -23,7 +23,11 @@ use ProductResearch\Security\Logger;
  * Lightweight service container.
  *
  * Uses a PHP array to map service IDs to factory closures.
- * Services are lazily instantiated on first get() call.
+ * Services are lazily instantiated on first get() call and then
+ * cached for subsequent requests within the same lifecycle.
+ *
+ * @package ProductResearch
+ * @since   1.0.0
  */
 final class Container
 {
@@ -33,15 +37,29 @@ final class Container
     /** @var array<string, object> */
     private array $instances = [];
 
+    /**
+     * Create the container and register all plugin service factories.
+     *
+     * @since 1.0.0
+     */
     public function __construct()
     {
         $this->registerServices();
     }
 
     /**
-     * @param string $id
-     * @return mixed
-     * @throws \RuntimeException If service not found.
+     * Resolve a service from the container.
+     *
+     * On the first call for a given ID the factory closure is invoked and
+     * the resulting instance is cached. Subsequent calls return the cached
+     * instance (singleton within this container's lifecycle).
+     *
+     * @since 1.0.0
+     *
+     * @param  string $id Fully-qualified class name used as the service identifier.
+     * @return mixed  The resolved service instance.
+     *
+     * @throws \RuntimeException If no factory has been registered for the given ID.
      */
     public function get(string $id): mixed
     {
@@ -60,13 +78,31 @@ final class Container
         return $this->instances[$id];
     }
 
+    /**
+     * Check whether a service factory is registered.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $id Fully-qualified class name used as the service identifier.
+     * @return bool   True if a factory exists for the given ID, false otherwise.
+     */
     public function has(string $id): bool
     {
         return isset($this->factories[$id]);
     }
 
     /**
-     * Register a service factory.
+     * Register (or replace) a service factory.
+     *
+     * If an instance was previously cached for this ID it is evicted,
+     * ensuring the new factory is used on the next get() call.
+     *
+     * @since 1.0.0
+     *
+     * @param string   $id      Fully-qualified class name used as the service identifier.
+     * @param callable $factory Closure that receives the Container and returns the service instance.
+     *
+     * @return void
      */
     public function set(string $id, callable $factory): void
     {
@@ -75,7 +111,15 @@ final class Container
     }
 
     /**
-     * Register all plugin services.
+     * Register all plugin service factories.
+     *
+     * Each factory closure defines how to instantiate a service and wire
+     * its dependencies. Closures are invoked lazily — only when the
+     * service is first requested via get().
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     private function registerServices(): void
     {

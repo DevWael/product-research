@@ -217,7 +217,7 @@
                                 <label class="pr-compare-check" title="${this.esc(s.compare)}" onclick="event.stopPropagation()">
                                     <input type="checkbox" class="pr-compare-cb" data-index="${i}">
                                 </label>
-                                <span class="pr-card__name">${this.esc(comp.name)}</span>
+                                <span class="pr-card__name">${comp.seller_name ? `<strong>${this.esc(comp.seller_name)}</strong> — ` : ''}${this.esc(comp.name)}</span>
                                 <span class="pr-card__price ${priceClass}">
                                     ${priceLabel}
                                 </span>
@@ -515,13 +515,8 @@
                 });
             }
 
-            // History items
-            this.root.querySelectorAll('.pr-history__item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const id = parseInt(item.dataset.reportId, 10);
-                    this.loadReport(id);
-                });
-            });
+            // Bind all history events (cards, checkboxes, toolbar, toggle)
+            this.bindHistoryEvents();
 
             // Recommendations button
             const btnRecs = this.root.querySelector('.pr-btn-recommendations');
@@ -634,14 +629,295 @@
         renderHistory() {
             const s = this.config.strings;
             const history = this.config.history || [];
-            let html = `<div class="pr-history"><h4>${this.esc(s.viewHistory)}</h4><div class="pr-history__list">`;
-            history.forEach(h => {
-                const date = new Date(h.created_at).toLocaleDateString();
+            const VISIBLE_COUNT = 5;
+            const hasMore = history.length > VISIBLE_COUNT;
+            const hasTerminal = history.some(h => h.status === 'complete' || h.status === 'failed');
+
+            let html = `<div class="pr-history"><h4>${this.esc(s.viewHistory)}</h4>`;
+
+            // Toolbar: Select All + Delete Selected + Delete All
+            if (hasTerminal && history.length > 1) {
+                html += `<div class="pr-history__toolbar">`;
+                html += `<label class="pr-history__select-all"><input type="checkbox" class="pr-history__select-all-cb"> ${this.esc(s.selectAll)}</label>`;
+                html += `<span class="pr-history__toolbar-actions">`;
+                html += `<button type="button" class="pr-history__bulk-delete" disabled>${this.esc(s.deleteSelected)}</button>`;
+                html += `<button type="button" class="pr-history__delete-all">${this.esc(s.deleteAll)}</button>`;
+                html += `</span>`;
+                html += `<div class="pr-history__bulk-confirm">`;
+                html += `<span class="pr-history__confirm-text"></span>`;
+                html += `<button type="button" class="pr-history__bulk-confirm-yes">${this.esc(s.confirmYes)}</button>`;
+                html += `<button type="button" class="pr-history__bulk-confirm-no">${this.esc(s.confirmNo)}</button>`;
+                html += `</div>`;
+                html += `</div>`;
+            }
+
+            html += `<div class="pr-history__list">`;
+            history.forEach((h, idx) => {
+                const dt = new Date(h.created_at);
+                const dateStr = dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                const timeStr = dt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
                 const statusBadge = h.status === 'complete' ? '✅' : h.status === 'failed' ? '❌' : '⏳';
-                html += `<div class="pr-history__item" data-report-id="${h.id}" role="button">${statusBadge} ${date}</div>`;
+                const query = (h.search_query || '').substring(0, 40) + ((h.search_query || '').length > 40 ? '…' : '');
+                const competitors = Array.isArray(h.competitor_data) ? h.competitor_data.length : 0;
+                const isTerminal = h.status === 'complete' || h.status === 'failed';
+                const hiddenClass = idx >= VISIBLE_COUNT ? ' pr-history__card--hidden' : '';
+
+                html += `
+                    <div class="pr-history__card${hiddenClass}" data-report-id="${h.id}" role="button">
+                        <div class="pr-history__card-main">
+                            ${isTerminal ? `<input type="checkbox" class="pr-history__cb" data-report-id="${h.id}">` : ''}
+                            <span class="pr-history__badge">${statusBadge}</span>
+                            <span class="pr-history__query" title="${this.escAttr(h.search_query || '')}">${this.esc(query || s.viewHistory)}</span>
+                            ${isTerminal ? `<button type="button" class="pr-history__delete" title="${this.escAttr(s.deleteReport)}" aria-label="${this.escAttr(s.deleteReport)}">🗑</button>` : ''}
+                        </div>
+                        <div class="pr-history__card-meta">
+                            <span>${competitors} ${this.esc(s.competitors)}</span>
+                            <span>${dateStr} ${timeStr}</span>
+                        </div>
+                        <div class="pr-history__confirm">
+                            <span class="pr-history__confirm-text">${this.esc(s.confirmDelete)}</span>
+                            <button type="button" class="pr-history__confirm-yes">${this.esc(s.confirmYes)}</button>
+                            <button type="button" class="pr-history__confirm-no">${this.esc(s.confirmNo)}</button>
+                        </div>
+                    </div>
+                `;
             });
-            html += `</div></div>`;
+            html += `</div>`;
+            if (hasMore) {
+                html += `<button type="button" class="pr-history__toggle">${this.esc(s.showMore)}</button>`;
+            }
+            html += `</div>`;
             return html;
+        }
+
+        deleteReport(reportId, cardEl) {
+            cardEl.classList.add('pr-history__card--deleting');
+
+            this.ajax('pr_delete_report', { report_id: reportId })
+                .then(data => {
+                    // Update local history
+                    this.config.history = data.history || [];
+
+                    // If we deleted the currently viewed report, load the next one
+                    if (this.state.reportId === reportId) {
+                        if (this.config.history.length > 0) {
+                            const next = this.config.history.find(h => h.status === 'complete') || this.config.history[0];
+                            this.loadReport(next.id);
+                        } else {
+                            this.showFirstRun();
+                        }
+                        return;
+                    }
+
+                    // Otherwise just rebuild the history section in place
+                    this.rebuildHistorySection();
+                })
+                .catch(() => {
+                    cardEl.classList.remove('pr-history__card--deleting', 'pr-history__card--confirming');
+                    // Show inline error briefly
+                    const meta = cardEl.querySelector('.pr-history__card-meta');
+                    if (meta) {
+                        const msg = document.createElement('span');
+                        msg.className = 'pr-history__error';
+                        msg.textContent = this.config.strings.deleteFailed;
+                        meta.appendChild(msg);
+                        setTimeout(() => msg.remove(), 3000);
+                    }
+                });
+        }
+
+        deleteReports(ids) {
+            const toolbar = this.root.querySelector('.pr-history__toolbar');
+            if (toolbar) toolbar.classList.add('pr-history__toolbar--deleting');
+
+            // Build form data with array of IDs
+            const formData = new FormData();
+            formData.append('action', 'pr_delete_reports');
+            formData.append('nonce', this.config.nonce);
+            ids.forEach(id => formData.append('report_ids[]', id));
+
+            fetch(this.config.ajaxUrl, { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(json => {
+                    if (!json.success) throw new Error(json.data?.message || this.config.strings.deleteFailed);
+                    this.config.history = json.data.history || [];
+                    const deletedIds = json.data.deleted || [];
+
+                    if (deletedIds.includes(this.state.reportId)) {
+                        if (this.config.history.length > 0) {
+                            const next = this.config.history.find(h => h.status === 'complete') || this.config.history[0];
+                            this.loadReport(next.id);
+                        } else {
+                            this.showFirstRun();
+                        }
+                        return;
+                    }
+                    this.rebuildHistorySection();
+                })
+                .catch(() => {
+                    if (toolbar) toolbar.classList.remove('pr-history__toolbar--deleting');
+                    const errSpan = document.createElement('span');
+                    errSpan.className = 'pr-history__error';
+                    errSpan.textContent = this.config.strings.deleteFailed;
+                    if (toolbar) toolbar.appendChild(errSpan);
+                    setTimeout(() => errSpan.remove(), 3000);
+                });
+        }
+
+        rebuildHistorySection() {
+            const container = this.root.querySelector('.pr-history');
+            if (!container) return;
+            // Preserve expanded state before replacing DOM
+            const wasExpanded = container.querySelector('.pr-history__list--expanded') !== null;
+            // Create a temp wrapper to parse new HTML
+            const tmp = document.createElement('div');
+            tmp.innerHTML = this.renderHistory();
+            const newHistory = tmp.firstElementChild;
+            if (wasExpanded) {
+                const list = newHistory.querySelector('.pr-history__list');
+                if (list) list.classList.add('pr-history__list--expanded');
+                const toggle = newHistory.querySelector('.pr-history__toggle');
+                if (toggle) toggle.textContent = this.config.strings.showLess;
+            }
+            container.replaceWith(newHistory);
+            // Re-bind events on the new history section
+            this.bindHistoryEvents();
+        }
+
+        bindHistoryEvents() {
+            const s = this.config.strings;
+
+            // Helper: collect checked IDs and sync UI
+            const syncToolbar = () => {
+                const checked = this.root.querySelectorAll('.pr-history__cb:checked');
+                const bulkBtn = this.root.querySelector('.pr-history__bulk-delete');
+                const selAllCb = this.root.querySelector('.pr-history__select-all-cb');
+                if (bulkBtn) {
+                    bulkBtn.disabled = checked.length === 0;
+                    bulkBtn.textContent = checked.length > 0
+                        ? `${s.deleteSelected} (${checked.length})`
+                        : s.deleteSelected;
+                }
+                // Sync Select-All checkbox state
+                if (selAllCb) {
+                    const total = this.root.querySelectorAll('.pr-history__cb').length;
+                    selAllCb.checked = total > 0 && checked.length === total;
+                    selAllCb.indeterminate = checked.length > 0 && checked.length < total;
+                }
+            };
+
+            // Card clicks (load report) — ignore checkbox/delete/confirm zones
+            this.root.querySelectorAll('.pr-history__card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.pr-history__delete') || e.target.closest('.pr-history__confirm') || e.target.closest('.pr-history__cb')) return;
+                    const id = parseInt(card.dataset.reportId, 10);
+                    this.loadReport(id);
+                });
+            });
+
+            // Individual checkboxes (with shift-click range selection)
+            const allCbs = Array.from(this.root.querySelectorAll('.pr-history__cb'));
+            let lastCheckedIdx = -1;
+
+            allCbs.forEach((cb, idx) => {
+                cb.addEventListener('click', (e) => {
+                    e.stopPropagation();
+
+                    if (e.shiftKey && lastCheckedIdx > -1 && lastCheckedIdx !== idx) {
+                        const start = Math.min(lastCheckedIdx, idx);
+                        const end = Math.max(lastCheckedIdx, idx);
+                        for (let i = start; i <= end; i++) {
+                            allCbs[i].checked = cb.checked;
+                        }
+                    }
+
+                    lastCheckedIdx = idx;
+                    syncToolbar();
+                });
+            });
+
+            // Select All checkbox
+            const selAllCb = this.root.querySelector('.pr-history__select-all-cb');
+            if (selAllCb) {
+                selAllCb.addEventListener('change', () => {
+                    const checked = selAllCb.checked;
+                    this.root.querySelectorAll('.pr-history__cb').forEach(cb => { cb.checked = checked; });
+                    syncToolbar();
+                });
+            }
+
+            // Delete buttons — single inline confirmation
+            this.root.querySelectorAll('.pr-history__delete').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    btn.closest('.pr-history__card').classList.add('pr-history__card--confirming');
+                });
+            });
+            this.root.querySelectorAll('.pr-history__confirm-yes').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const card = btn.closest('.pr-history__card');
+                    this.deleteReport(parseInt(card.dataset.reportId, 10), card);
+                });
+            });
+            this.root.querySelectorAll('.pr-history__confirm-no').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    btn.closest('.pr-history__card').classList.remove('pr-history__card--confirming');
+                });
+            });
+
+            // Bulk confirmation UI state helper
+            const bulkConfirm = this.root.querySelector('.pr-history__bulk-confirm');
+            const bulkConfirmText = bulkConfirm?.querySelector('.pr-history__confirm-text');
+            let pendingBulkIds = [];
+
+            const showBulkConfirm = (text, ids) => {
+                pendingBulkIds = ids;
+                if (bulkConfirmText) bulkConfirmText.textContent = text;
+                if (bulkConfirm) bulkConfirm.classList.add('pr-history__bulk-confirm--visible');
+            };
+            const hideBulkConfirm = () => {
+                pendingBulkIds = [];
+                if (bulkConfirm) bulkConfirm.classList.remove('pr-history__bulk-confirm--visible');
+            };
+
+            // Delete Selected button
+            const bulkDeleteBtn = this.root.querySelector('.pr-history__bulk-delete');
+            if (bulkDeleteBtn) {
+                bulkDeleteBtn.addEventListener('click', () => {
+                    const ids = Array.from(this.root.querySelectorAll('.pr-history__cb:checked')).map(cb => parseInt(cb.dataset.reportId, 10));
+                    if (ids.length === 0) return;
+                    showBulkConfirm(s.confirmDeleteSelected, ids);
+                });
+            }
+
+            // Delete All button
+            const deleteAllBtn = this.root.querySelector('.pr-history__delete-all');
+            if (deleteAllBtn) {
+                deleteAllBtn.addEventListener('click', () => {
+                    const ids = Array.from(this.root.querySelectorAll('.pr-history__cb')).map(cb => parseInt(cb.dataset.reportId, 10));
+                    if (ids.length === 0) return;
+                    showBulkConfirm(s.confirmDeleteAll, ids);
+                });
+            }
+
+            // Bulk confirm yes/no
+            const bulkYes = this.root.querySelector('.pr-history__bulk-confirm-yes');
+            const bulkNo = this.root.querySelector('.pr-history__bulk-confirm-no');
+            if (bulkYes) bulkYes.addEventListener('click', () => { const ids = [...pendingBulkIds]; hideBulkConfirm(); this.deleteReports(ids); });
+            if (bulkNo) bulkNo.addEventListener('click', () => hideBulkConfirm());
+
+            // Show more / Show less
+            const showMoreBtn = this.root.querySelector('.pr-history__toggle');
+            if (showMoreBtn) {
+                showMoreBtn.addEventListener('click', () => {
+                    const list = this.root.querySelector('.pr-history__list');
+                    if (!list) return;
+                    const expanded = list.classList.toggle('pr-history__list--expanded');
+                    showMoreBtn.textContent = expanded ? s.showLess : s.showMore;
+                });
+            }
         }
 
         getPriceClass(price, avgPrice) {
@@ -755,7 +1031,7 @@
             competitors.forEach(c => {
                 const price = parseFloat(c.converted_price ?? c.current_price);
                 if (price > 0 && c.conversion_status !== 'failed') {
-                    items.push({ label: c.name?.substring(0, 20), price: price, isOwn: false });
+                    items.push({ label: (c.seller_name || c.name)?.substring(0, 20), price: price, isOwn: false });
                 }
             });
 

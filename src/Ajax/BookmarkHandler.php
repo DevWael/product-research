@@ -11,11 +11,21 @@ use ProductResearch\Report\ReportRepository;
  *
  * Stores bookmarked competitor URLs as product meta for
  * persistence across research sessions.
+ *
+ * @package ProductResearch\Ajax
+ * @since   1.0.0
  */
 final class BookmarkHandler
 {
     private ReportRepository $reports;
 
+    /**
+     * Create the bookmark handler.
+     *
+     * @since 1.0.0
+     *
+     * @param ReportRepository $reports Report persistence layer.
+     */
     public function __construct(ReportRepository $reports)
     {
         $this->reports = $reports;
@@ -23,6 +33,10 @@ final class BookmarkHandler
 
     /**
      * Add a competitor URL to the product's bookmark list.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
      */
     public function handleAddBookmark(): void
     {
@@ -48,6 +62,10 @@ final class BookmarkHandler
 
     /**
      * Remove a competitor URL from the product's bookmark list.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
      */
     public function handleRemoveBookmark(): void
     {
@@ -71,6 +89,12 @@ final class BookmarkHandler
 
     /**
      * Verify nonce and capabilities.
+     *
+     * Terminates with a 403 JSON error if verification fails.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     private function verifyRequest(): void
     {
@@ -85,6 +109,12 @@ final class BookmarkHandler
 
     /**
      * Get and validate product ID from the request.
+     *
+     * Terminates with a 400 JSON error if invalid.
+     *
+     * @since 1.0.0
+     *
+     * @return int Validated product post ID.
      */
     private function getProductId(): int
     {

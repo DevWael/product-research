@@ -12,6 +12,9 @@ use ProductResearch\Cache\CacheManager;
  * HTTP client for Tavily Search and Extract APIs.
  *
  * Uses wp_remote_post() with retry + exponential backoff.
+ *
+ * @package ProductResearch\API
+ * @since   1.0.0
  */
 final class TavilyClient
 {
@@ -44,6 +47,15 @@ final class TavilyClient
     private CacheManager $cache;
     private Logger $logger;
 
+    /**
+     * Create the Tavily client.
+     *
+     * @since 1.0.0
+     *
+     * @param Encryption   $encryption  AES-256 encryption for API key storage.
+     * @param CacheManager $cache       WordPress-transient cache.
+     * @param Logger       $logger      Sanitized error logging.
+     */
     public function __construct(
         Encryption $encryption,
         CacheManager $cache,
@@ -57,9 +69,13 @@ final class TavilyClient
     /**
      * Search for competitors via Tavily Search API.
      *
-     * @param array<string, mixed> $options
-     * @return array<string, mixed>
-     * @throws \RuntimeException On API failure.
+     * @since 1.0.0
+     *
+     * @param  string               $query   Natural-language search query.
+     * @param  array<string, mixed>  $options Override default search parameters.
+     * @return array<string, mixed>  Tavily API response body.
+     *
+     * @throws \RuntimeException On API failure or missing API key.
      */
     public function search(string $query, array $options = []): array
     {
@@ -80,10 +96,16 @@ final class TavilyClient
     /**
      * Extract content from URLs via Tavily Extract API.
      *
-     * @param array<string> $urls
-     * @param array<string, mixed> $options
-     * @return array<string, mixed>
-     * @throws \RuntimeException On API failure.
+     * Uses a generous 120-second timeout because advanced-depth
+     * extraction can take up to 30 seconds per URL.
+     *
+     * @since 1.0.0
+     *
+     * @param  array<string>        $urls    URLs to extract content from.
+     * @param  array<string, mixed>  $options Override default extract parameters.
+     * @return array<string, mixed>  Tavily API response body.
+     *
+     * @throws \RuntimeException On API failure or missing API key.
      */
     public function extract(array $urls, array $options = []): array
     {
@@ -102,6 +124,13 @@ final class TavilyClient
 
     /**
      * Track API credit usage for daily budget enforcement.
+     *
+     * Stores a running total in a transient keyed by today's date.
+     *
+     * @since 1.0.0
+     *
+     * @param int $credits Number of credits consumed by the request.
+     * @return void
      */
     public function trackCredits(int $credits): void
     {
@@ -113,6 +142,10 @@ final class TavilyClient
 
     /**
      * Get total credits used today.
+     *
+     * @since 1.0.0
+     *
+     * @return int Credits consumed since midnight (UTC).
      */
     public function getCreditsUsedToday(): int
     {
@@ -124,9 +157,19 @@ final class TavilyClient
     /**
      * Make an HTTP request with retry and exponential backoff.
      *
-     * @param array<string, mixed> $body
-     * @return array<string, mixed>
-     * @throws \RuntimeException On failure after retries.
+     * Retries on WP errors, 429, and 5xx responses. Throws on
+     * non-200 responses with parseable error detail and after
+     * exhausting all retries.
+     *
+     * @since 1.0.0
+     *
+     * @param  string               $url     API endpoint URL.
+     * @param  array<string, mixed>  $body    JSON-encodable request body.
+     * @param  string               $apiKey  Decrypted Tavily API key.
+     * @param  int                  $timeout HTTP timeout in seconds.
+     * @return array<string, mixed>  Decoded JSON response.
+     *
+     * @throws \RuntimeException On failure after all retries.
      */
     private function request(string $url, array $body, string $apiKey, int $timeout = 30): array
     {
@@ -205,7 +248,11 @@ final class TavilyClient
     /**
      * Get decrypted Tavily API key.
      *
-     * @throws \RuntimeException If no API key configured.
+     * @since 1.0.0
+     *
+     * @return string Plain-text API key.
+     *
+     * @throws \RuntimeException If no API key configured or decryption fails.
      */
     private function getApiKey(): string
     {

@@ -9,6 +9,9 @@ namespace ProductResearch\Report;
  *
  * Reports are internal (not public), storing competitive analysis
  * data linked to WooCommerce products.
+ *
+ * @package ProductResearch\Report
+ * @since   1.0.0
  */
 final class ReportPostType
 {
@@ -36,6 +39,12 @@ final class ReportPostType
 
     /**
      * Register the report post type.
+     *
+     * Also triggers meta field registration via {@see registerMeta()}.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     public static function register(): void
     {
@@ -58,7 +67,12 @@ final class ReportPostType
 
     /**
      * Register post meta fields with proper types.
+     *
      * All structured data stored as JSON strings.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     private static function registerMeta(): void
     {

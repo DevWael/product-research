@@ -18,18 +18,41 @@ use ProductResearch\Report\ReportRepository;
  *
  * Builds summary dashboard data, serializes CompetitorProfile objects
  * to arrays for JSON storage, and saves to ReportRepository.
+ *
+ * @package ProductResearch\AI\Workflow\Nodes
+ * @since   1.0.0
  */
 final class ReportNode extends Node
 {
     private ReportRepository $reports;
     private CurrencyConverter $converter;
 
+    /**
+     * Create the report node.
+     *
+     * @since 1.0.0
+     *
+     * @param ReportRepository  $reports   Report persistence.
+     * @param CurrencyConverter $converter Price normalization service.
+     */
     public function __construct(ReportRepository $reports, CurrencyConverter $converter)
     {
         $this->reports   = $reports;
         $this->converter = $converter;
     }
 
+    /**
+     * Execute the report-building step of the workflow.
+     *
+     * Normalizes all prices to the store's currency, builds a summary
+     * dashboard, serializes profiles, saves results, and emits a StopEvent.
+     *
+     * @since 1.0.0
+     *
+     * @param  AnalysisCompletedEvent $event Analyzed competitor profiles.
+     * @param  WorkflowState          $state Shared state (report_id).
+     * @return StopEvent              Terminates the workflow.
+     */
     public function __invoke(AnalysisCompletedEvent $event, WorkflowState $state): StopEvent
     {
         $reportId = $state->get('report_id');
@@ -66,8 +89,14 @@ final class ReportNode extends Node
     /**
      * Build summary dashboard data from competitor profiles.
      *
-     * @param CompetitorProfile[] $profiles
-     * @return array<string, mixed>
+     * Calculates lowest, highest, and average prices; builds chart data;
+     * identifies common features; and generates key findings.
+     *
+     * @since 1.0.0
+     *
+     * @param  CompetitorProfile[] $profiles Analyzed competitor profiles.
+     * @param  WorkflowState       $state    Shared workflow state.
+     * @return array<string, mixed> Dashboard summary data.
      */
     private function buildSummary(array $profiles, WorkflowState $state): array
     {
@@ -99,8 +128,10 @@ final class ReportNode extends Node
     /**
      * Build price range chart data.
      *
-     * @param CompetitorProfile[] $profiles
-     * @return array<int, array<string, mixed>>
+     * @since 1.0.0
+     *
+     * @param  CompetitorProfile[] $profiles Analyzed competitor profiles.
+     * @return array<int, array<string, mixed>> Chart-ready price data.
      */
     private function buildPriceRangeData(array $profiles): array
     {
@@ -116,8 +147,13 @@ final class ReportNode extends Node
     /**
      * Find features that appear across multiple competitors.
      *
-     * @param CompetitorProfile[] $profiles
-     * @return array<string>
+     * Returns up to 10 features that appear in 2+ competitor profiles,
+     * sorted by frequency (descending).
+     *
+     * @since 1.0.0
+     *
+     * @param  CompetitorProfile[] $profiles Analyzed competitor profiles.
+     * @return array<string> Normalized feature strings.
      */
     private function findCommonFeatures(array $profiles): array
     {
@@ -140,8 +176,14 @@ final class ReportNode extends Node
     /**
      * Generate key findings text from analysis.
      *
-     * @param CompetitorProfile[] $profiles
-     * @return array<string>
+     * Produces human-readable sentences about price ranges, discounts,
+     * availability, variations, and conversion warnings.
+     *
+     * @since 1.0.0
+     *
+     * @param  CompetitorProfile[] $profiles Analyzed competitor profiles.
+     * @param  WorkflowState       $state    Shared workflow state.
+     * @return array<string>       Finding sentences for the dashboard.
      */
     private function generateKeyFindings(array $profiles, WorkflowState $state): array
     {
@@ -202,7 +244,13 @@ final class ReportNode extends Node
     }
 
     /**
-     * Format a price with currency.
+     * Format a price with currency code prefix.
+     *
+     * @since 1.0.0
+     *
+     * @param  float  $price    The numeric price value.
+     * @param  string $currency Currency code (e.g. 'USD').
+     * @return string Formatted price string, e.g. "USD 29.99".
      */
     private function formatPrice(float $price, string $currency): string
     {
@@ -211,6 +259,10 @@ final class ReportNode extends Node
 
     /**
      * Return an empty summary structure.
+     *
+     * Used when no competitor profiles were successfully analyzed.
+     *
+     * @since 1.0.0
      *
      * @return array<string, mixed>
      */

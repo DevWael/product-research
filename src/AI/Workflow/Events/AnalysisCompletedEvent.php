@@ -10,6 +10,9 @@ use ProductResearch\AI\Schema\CompetitorProfile;
 /**
  * Emitted after AI analysis of all competitors.
  * Carries validated CompetitorProfile objects.
+ *
+ * @package ProductResearch\AI\Workflow\Events
+ * @since   1.0.0
  */
 final class AnalysisCompletedEvent implements Event
 {
@@ -20,8 +23,12 @@ final class AnalysisCompletedEvent implements Event
     public readonly array $analysisReport;
 
     /**
-     * @param CompetitorProfile[]  $competitorProfiles
-     * @param array<string, mixed> $analysisReport
+     * Create the event.
+     *
+     * @since 1.0.0
+     *
+     * @param CompetitorProfile[]  $competitorProfiles Validated competitor profiles.
+     * @param array<string, mixed> $analysisReport     Optional raw analysis data.
      */
     public function __construct(array $competitorProfiles, array $analysisReport = [])
     {

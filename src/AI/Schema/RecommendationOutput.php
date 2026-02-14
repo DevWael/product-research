@@ -10,6 +10,9 @@ use NeuronAI\StructuredOutput\SchemaProperty;
  * Wrapper schema for the AI recommendation agent output.
  *
  * The agent returns exactly 3 recommendations.
+ *
+ * @package ProductResearch\AI\Schema
+ * @since   1.0.0
  */
 final class RecommendationOutput
 {
@@ -19,6 +22,8 @@ final class RecommendationOutput
 
     /**
      * Convert to array for JSON storage.
+     *
+     * @since 1.0.0
      *
      * @return array<int, array<string, string>>
      */

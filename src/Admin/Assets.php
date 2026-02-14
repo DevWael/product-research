@@ -6,12 +6,23 @@ namespace ProductResearch\Admin;
 
 /**
  * Asset management: enqueue JS and CSS only on WooCommerce product edit pages.
+ *
+ * @package ProductResearch\Admin
+ * @since   1.0.0
  */
 final class Assets
 {
     private string $pluginUrl;
     private string $pluginPath;
 
+    /**
+     * Create the asset manager.
+     *
+     * @since 1.0.0
+     *
+     * @param string $pluginUrl  Plugin directory URL (trailing slash).
+     * @param string $pluginPath Plugin directory filesystem path (trailing slash).
+     */
     public function __construct(string $pluginUrl, string $pluginPath)
     {
         $this->pluginUrl  = $pluginUrl;
@@ -20,6 +31,13 @@ final class Assets
 
     /**
      * Enqueue admin assets on product edit screens.
+     *
+     * Registers Chart.js from CDN and enqueues the metabox JS/CSS bundle.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $hook Current admin page hook suffix.
+     * @return void
      */
     public function enqueue(string $hook): void
     {
@@ -55,6 +73,11 @@ final class Assets
 
     /**
      * Enqueue settings page assets.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $hook Current admin page hook suffix.
+     * @return void
      */
     public function enqueueSettings(string $hook): void
     {
@@ -72,6 +95,11 @@ final class Assets
 
     /**
      * Check if current screen is a WooCommerce product edit page.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $hook Current admin page hook suffix.
+     * @return bool   True if on a product post.php or post-new.php screen.
      */
     private function isProductEditScreen(string $hook): bool
     {
@@ -86,6 +114,12 @@ final class Assets
 
     /**
      * Get version string for cache busting.
+     *
+     * Reads the plugin header to obtain the current version.
+     *
+     * @since 1.0.0
+     *
+     * @return string Plugin version, or '1.0.0' as fallback.
      */
     private function getVersion(): string
     {

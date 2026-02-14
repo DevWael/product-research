@@ -7,6 +7,9 @@ namespace ProductResearch\Admin;
 /**
  * Adds a "Competitors" column to the WooCommerce product list table
  * showing the competitor count and price position badge.
+ *
+ * @package ProductResearch\Admin
+ * @since   1.0.0
  */
 class ProductListColumns
 {
@@ -14,6 +17,12 @@ class ProductListColumns
 
     /**
      * Register hooks for product list columns.
+     *
+     * Guards against duplicate registration via an internal flag.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     public function register(): void
     {
@@ -29,8 +38,13 @@ class ProductListColumns
     /**
      * Insert the "Competitors" column after the "Price" column.
      *
-     * @param array<string, string> $columns
-     * @return array<string, string>
+     * Falls back to appending at the end if the "price" column
+     * is not present in the column list.
+     *
+     * @since 1.0.0
+     *
+     * @param  array<string, string> $columns Existing column key => label map.
+     * @return array<string, string> Modified column map.
      */
     public function addColumn(array $columns): array
     {
@@ -55,8 +69,14 @@ class ProductListColumns
     /**
      * Render the badge for the "Competitors" column.
      *
-     * @param string $column  Column key.
-     * @param int    $postId  Product post ID.
+     * Outputs a colored badge with competitor count and price-position
+     * indicator (below/at/above average).
+     *
+     * @since 1.0.0
+     *
+     * @param  string $column Column key.
+     * @param  int    $postId Product post ID.
+     * @return void
      */
     public function renderColumn(string $column, int $postId): void
     {
@@ -98,6 +118,10 @@ class ProductListColumns
 
     /**
      * Enqueue badge styles on product list screens.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     public function enqueueAssets(): void
     {

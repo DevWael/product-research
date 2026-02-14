@@ -12,6 +12,9 @@ use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
  *
  * Neuron AI validates LLM output against these typed properties
  * and validation attributes automatically, retrying on failure.
+ *
+ * @package ProductResearch\AI\Schema
+ * @since   1.0.0
  */
 final class ProductVariation
 {
@@ -31,6 +34,8 @@ final class ProductVariation
 
     /**
      * Convert to array for JSON storage.
+     *
+     * @since 1.0.0
      *
      * @return array<string, mixed>
      */

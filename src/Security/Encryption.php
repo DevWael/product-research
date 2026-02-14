@@ -8,6 +8,9 @@ namespace ProductResearch\Security;
  * AES-256-CBC encryption helper for API keys at rest.
  *
  * Uses WordPress LOGGED_IN_SALT as the encryption key.
+ *
+ * @package ProductResearch\Security
+ * @since   1.0.0
  */
 final class Encryption
 {
@@ -15,6 +18,13 @@ final class Encryption
 
     /**
      * Encrypt a plaintext value.
+     *
+     * Returns an empty string if the input is empty or encryption fails.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $value Plain-text value to encrypt.
+     * @return string Base64-encoded ciphertext (IV prepended), or empty on failure.
      */
     public function encrypt(string $value): string
     {
@@ -35,6 +45,13 @@ final class Encryption
 
     /**
      * Decrypt an encrypted value.
+     *
+     * Returns an empty string if the input is empty or decryption fails.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $encrypted Base64-encoded ciphertext.
+     * @return string Decrypted plain-text, or empty on failure.
      */
     public function decrypt(string $encrypted): string
     {
@@ -60,6 +77,12 @@ final class Encryption
 
     /**
      * Derive encryption key from WordPress salt.
+     *
+     * Falls back to a default salt if LOGGED_IN_SALT is not defined.
+     *
+     * @since 1.0.0
+     *
+     * @return string 32-byte binary SHA-256 hash.
      */
     private function getKey(): string
     {

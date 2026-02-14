@@ -19,6 +19,9 @@ use ProductResearch\Security\Logger;
  *
  * Constructs a search query from product data, executes the search,
  * caches results, and emits URLs for admin preview.
+ *
+ * @package ProductResearch\AI\Workflow\Nodes
+ * @since   1.0.0
  */
 final class SearchNode extends Node
 {
@@ -27,6 +30,16 @@ final class SearchNode extends Node
     private ReportRepository $reports;
     private Logger $logger;
 
+    /**
+     * Create the search node with required dependencies.
+     *
+     * @since 1.0.0
+     *
+     * @param TavilyClient     $tavily  Tavily API client for web search.
+     * @param CacheManager     $cache   Transient-based cache.
+     * @param ReportRepository $reports Report persistence layer.
+     * @param Logger           $logger  Sanitized error logging.
+     */
     public function __construct(
         TavilyClient $tavily,
         CacheManager $cache,
@@ -39,6 +52,20 @@ final class SearchNode extends Node
         $this->logger  = $logger;
     }
 
+    /**
+     * Execute the search step of the workflow.
+     *
+     * Builds a query from product state, checks the cache, calls Tavily,
+     * persists successful results, and emits a {@see SearchCompletedEvent}.
+     *
+     * @since 1.0.0
+     *
+     * @param  StartEvent    $event Trigger event from the workflow engine.
+     * @param  WorkflowState $state Shared state carrying product_id, report_id, etc.
+     * @return SearchCompletedEvent
+     *
+     * @throws \Throwable If the Tavily search API call fails.
+     */
     public function __invoke(StartEvent $event, WorkflowState $state): SearchCompletedEvent
     {
         $reportId  = $state->get('report_id');
@@ -76,6 +103,14 @@ final class SearchNode extends Node
 
     /**
      * Build the search query from product state data.
+     *
+     * Combines product title, category, and brand into a search-optimised
+     * query string with the suffix "price buy".
+     *
+     * @since 1.0.0
+     *
+     * @param  WorkflowState $state Shared workflow state.
+     * @return string        The constructed search query.
      */
     private function buildSearchQuery(WorkflowState $state): string
     {
@@ -104,7 +139,13 @@ final class SearchNode extends Node
     /**
      * Build a SearchCompletedEvent from Tavily response.
      *
-     * @param array<string, mixed> $results
+     * Extracts non-empty URLs from the search results array.
+     *
+     * @since 1.0.0
+     *
+     * @param  array<string, mixed> $results Raw Tavily search response.
+     * @param  string               $query   The search query used.
+     * @return SearchCompletedEvent
      */
     private function buildEvent(array $results, string $query): SearchCompletedEvent
     {

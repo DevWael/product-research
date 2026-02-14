@@ -378,21 +378,251 @@
 
 .pr-history__list {
     display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 4px;
 }
 
-.pr-history__item {
-    padding: 4px 10px;
+/* ── Bulk toolbar ───────────────────────────────────────── */
+.pr-history__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    padding: 6px 8px;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.pr-history__toolbar--deleting {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.pr-history__select-all {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #50575e;
+    white-space: nowrap;
+}
+
+.pr-history__toolbar-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.pr-history__bulk-delete,
+.pr-history__delete-all {
+    padding: 2px 10px;
     border: 1px solid #dcdcde;
     border-radius: 3px;
-    font-size: 12px;
+    font-size: 11px;
     cursor: pointer;
-    transition: background-color 0.15s;
+    background: #fff;
+    transition: all 0.15s;
+    white-space: nowrap;
 }
 
-.pr-history__item:hover {
+.pr-history__bulk-delete:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.pr-history__bulk-delete:not(:disabled):hover {
+    border-color: #d63638;
+    color: #d63638;
+}
+
+.pr-history__delete-all {
+    color: #d63638;
+    border-color: #d63638;
+}
+
+.pr-history__delete-all:hover {
+    background: #d63638;
+    color: #fff;
+}
+
+/* ── Bulk confirmation row ──────────────────────────────── */
+.pr-history__bulk-confirm {
+    display: none;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    padding-top: 6px;
+    border-top: 1px solid #dcdcde;
+    font-size: 11px;
+}
+
+.pr-history__bulk-confirm--visible {
+    display: flex;
+}
+
+/* ── Card checkbox ──────────────────────────────────────── */
+.pr-history__cb {
+    flex-shrink: 0;
+    margin: 0;
+    cursor: pointer;
+}
+
+/* ── History card ────────────────────────────────────────── */
+.pr-history__card {
+    position: relative;
+    padding: 8px 10px;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.15s, opacity 0.3s;
+}
+
+.pr-history__card:hover {
+    background: #f6f7f7;
+}
+
+.pr-history__card--hidden {
+    display: none;
+}
+
+.pr-history__list--expanded .pr-history__card--hidden {
+    display: block;
+}
+
+.pr-history__card-main {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pr-history__badge {
+    flex-shrink: 0;
+    font-size: 13px;
+    line-height: 1;
+}
+
+.pr-history__query {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+    color: #1d2327;
+}
+
+.pr-history__delete {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    border-radius: 2px;
+    line-height: 1;
+}
+
+.pr-history__card:hover .pr-history__delete {
+    opacity: 0.5;
+}
+
+.pr-history__delete:hover {
+    opacity: 1 !important;
     background: #f0f0f1;
+}
+
+.pr-history__card-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: 11px;
+    color: #646970;
+}
+
+/* ── Inline confirmation (ACF-style) ────────────────────── */
+.pr-history__confirm {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid #f0f0f1;
+    font-size: 11px;
+}
+
+.pr-history__card--confirming .pr-history__confirm {
+    display: flex;
+}
+
+.pr-history__confirm-text {
+    color: #d63638;
+    font-weight: 500;
+}
+
+.pr-history__confirm-yes,
+.pr-history__confirm-no {
+    padding: 2px 10px;
+    border: 1px solid #dcdcde;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+    background: #fff;
+    transition: all 0.15s;
+}
+
+.pr-history__confirm-yes {
+    color: #d63638;
+    border-color: #d63638;
+}
+
+.pr-history__confirm-yes:hover {
+    background: #d63638;
+    color: #fff;
+}
+
+.pr-history__confirm-no:hover {
+    background: #f0f0f1;
+}
+
+/* ── Deleting state ─────────────────────────────────────── */
+.pr-history__card--deleting {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+/* ── Inline error ───────────────────────────────────────── */
+.pr-history__error {
+    color: #d63638;
+    font-weight: 500;
+    margin-left: 8px;
+}
+
+/* ── Show more toggle ───────────────────────────────────── */
+.pr-history__toggle {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 4px 0;
+    background: none;
+    border: none;
+    border-top: 1px solid #f0f0f1;
+    color: #2271b1;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: color 0.15s;
+}
+
+.pr-history__toggle:hover {
+    color: #135e96;
 }
 
 /* ─── Error ─────────────────────────────────────────────── */

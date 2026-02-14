@@ -9,13 +9,20 @@ namespace ProductResearch\Report;
  *
  * Uses WP_Query internally. Supports session persistence
  * via getInProgress() for detecting non-complete reports.
+ *
+ * @package ProductResearch\Report
+ * @since   1.0.0
  */
 final class ReportRepository
 {
     /**
      * Create a new report.
      *
-     * @param array<string, mixed> $data
+     * @since 1.0.0
+     *
+     * @param  int                   $productId WooCommerce product post ID.
+     * @param  array<string, mixed>  $data      Optional initial meta values.
+     * @return int Created report post ID.
      */
     public function create(int $productId, array $data = []): int
     {
@@ -46,7 +53,11 @@ final class ReportRepository
     /**
      * Find all reports for a product, newest first.
      *
-     * @return array<int, array<string, mixed>>
+     * @since 1.0.0
+     *
+     * @param  int $productId WooCommerce product post ID.
+     * @param  int $limit     Maximum number of reports to return.
+     * @return array<int, array<string, mixed>> Formatted report arrays.
      */
     public function findByProduct(int $productId, int $limit = 10): array
     {
@@ -70,7 +81,10 @@ final class ReportRepository
     /**
      * Find a single report by ID.
      *
-     * @return array<string, mixed>|null
+     * @since 1.0.0
+     *
+     * @param  int $reportId Report post ID.
+     * @return array<string, mixed>|null Report data, or null if not found.
      */
     public function findById(int $reportId): ?array
     {
@@ -86,7 +100,11 @@ final class ReportRepository
     /**
      * Update a report's meta data.
      *
-     * @param array<string, mixed> $data
+     * @since 1.0.0
+     *
+     * @param  int                  $reportId Report post ID.
+     * @param  array<string, mixed> $data     Key-value map of meta fields.
+     * @return void
      */
     public function update(int $reportId, array $data): void
     {
@@ -96,9 +114,33 @@ final class ReportRepository
     }
 
     /**
+     * Delete a single report by ID.
+     *
+     * Validates the post belongs to this post type before deleting.
+     *
+     * @since 1.0.0
+     *
+     * @param  int  $reportId Report post ID.
+     * @return bool True if deleted, false otherwise.
+     */
+    public function delete(int $reportId): bool
+    {
+        $post = get_post($reportId);
+
+        if (! $post || $post->post_type !== ReportPostType::POST_TYPE) {
+            return false;
+        }
+
+        return (bool) wp_delete_post($reportId, true);
+    }
+
+    /**
      * Get the most recent completed report for a product.
      *
-     * @return array<string, mixed>|null
+     * @since 1.0.0
+     *
+     * @param  int $productId WooCommerce product post ID.
+     * @return array<string, mixed>|null Report data, or null if none found.
      */
     public function getLatest(int $productId): ?array
     {
@@ -127,9 +169,13 @@ final class ReportRepository
 
     /**
      * Get any in-progress (non-complete, non-failed) report for a product.
+     *
      * Used for session persistence and concurrent request guards.
      *
-     * @return array<string, mixed>|null
+     * @since 1.0.0
+     *
+     * @param  int $productId WooCommerce product post ID.
+     * @return array<string, mixed>|null Report data, or null if none found.
      */
     public function getInProgress(int $productId): ?array
     {
@@ -159,6 +205,12 @@ final class ReportRepository
 
     /**
      * Delete reports older than a given number of days for a product.
+     *
+     * @since 1.0.0
+     *
+     * @param  int $days      Age threshold in days.
+     * @param  int $productId Optional product ID filter (0 = all products).
+     * @return void
      */
     public function deleteOlderThan(int $days, int $productId = 0): int
     {
@@ -195,6 +247,13 @@ final class ReportRepository
 
     /**
      * Update report status and progress message.
+     *
+     * @since 1.0.0
+     *
+     * @param  int    $reportId Report post ID.
+     * @param  string $status   New status constant.
+     * @param  string $message  Optional progress message.
+     * @return void
      */
     public function updateStatus(int $reportId, string $status, string $message = ''): void
     {
@@ -208,7 +267,10 @@ final class ReportRepository
     /**
      * Format a WP_Post into a report array.
      *
-     * @return array<string, mixed>
+     * @since 1.0.0
+     *
+     * @param  \WP_Post $post Report post object.
+     * @return array<string, mixed> Normalised report data.
      */
     private function formatReport(\WP_Post $post): array
     {
@@ -230,7 +292,10 @@ final class ReportRepository
     /**
      * Get cached recommendations for a report.
      *
-     * @return array<int, array<string, string>>
+     * @since 1.0.0
+     *
+     * @param  int $postId Report post ID.
+     * @return array<int, array<string, string>> Recommendation arrays.
      */
     private function getRecommendations(int $postId): array
     {
@@ -242,7 +307,11 @@ final class ReportRepository
     /**
      * Get JSON-decoded meta value.
      *
-     * @return mixed
+     * @since 1.0.0
+     *
+     * @param  int    $postId Report post ID.
+     * @param  string $key    Meta key.
+     * @return mixed  Decoded value, or empty array on failure.
      */
     private function getJsonMeta(int $postId, string $key): mixed
     {
@@ -257,6 +326,13 @@ final class ReportRepository
 
     /**
      * Set a meta value, JSON-encoding arrays/objects.
+     *
+     * @since 1.0.0
+     *
+     * @param  int    $postId Report post ID.
+     * @param  string $key    Meta key.
+     * @param  mixed  $value  Value to store.
+     * @return void
      */
     private function setMeta(int $postId, string $key, mixed $value): void
     {

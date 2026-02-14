@@ -20,6 +20,9 @@ use ProductResearch\Security\Logger;
  *
  * Calls ProductAnalysisAgent with Neuron structured output to get typed
  * CompetitorProfile objects. Validates URL domains and flags suspicious uniformity.
+ *
+ * @package ProductResearch\AI\Workflow\Nodes
+ * @since   1.0.0
  */
 final class AnalyzeNode extends Node
 {
@@ -28,6 +31,14 @@ final class AnalyzeNode extends Node
     private ReportRepository $reports;
     private Logger $logger;
 
+    /**
+     * Create the analysis node.
+     *
+     * @since 1.0.0
+     *
+     * @param ReportRepository $reports Report persistence.
+     * @param Logger           $logger  Sanitized logging.
+     */
     public function __construct(
         ReportRepository $reports,
         Logger $logger
@@ -36,6 +47,18 @@ final class AnalyzeNode extends Node
         $this->logger  = $logger;
     }
 
+    /**
+     * Execute the AI analysis step of the workflow.
+     *
+     * Iterates over extracted competitor data, invokes the AI agent for
+     * each, validates URL domains, and flags suspiciously uniform results.
+     *
+     * @since 1.0.0
+     *
+     * @param  ExtractionCompletedEvent $event Extracted competitor content.
+     * @param  WorkflowState            $state Shared state (report_id).
+     * @return AnalysisCompletedEvent
+     */
     public function __invoke(ExtractionCompletedEvent $event, WorkflowState $state): AnalysisCompletedEvent
     {
         $reportId = $state->get('report_id');
@@ -100,6 +123,15 @@ final class AnalyzeNode extends Node
 
     /**
      * Analyze a single competitor using Neuron structured output.
+     *
+     * Invokes {@see ProductAnalysisAgent} with the sanitized content and
+     * validates that the returned URL domain matches the source.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $content   Sanitized page content.
+     * @param  string $sourceUrl Original URL the content was extracted from.
+     * @return CompetitorProfile|null Null if the agent returned an unexpected type.
      */
     private function analyzeCompetitor(string $content, string $sourceUrl): ?CompetitorProfile
     {
@@ -134,6 +166,12 @@ final class AnalyzeNode extends Node
 
     /**
      * Validate that the profile URL domain matches the source domain.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $profileUrl URL returned by the AI agent.
+     * @param  string $sourceUrl  Original competitor URL.
+     * @return bool   True if the domains match.
      */
     private function validateUrlDomain(string $profileUrl, string $sourceUrl): bool
     {

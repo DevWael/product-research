@@ -15,12 +15,23 @@ use ProductResearch\Security\Logger;
  *
  * Takes competitor analysis data and a tone preference,
  * then calls the CopywriterAgent for structured output.
+ *
+ * @package ProductResearch\Ajax
+ * @since   1.0.0
  */
 final class CopywriterHandler
 {
     private ReportRepository $reports;
     private Logger $logger;
 
+    /**
+     * Create the copywriter handler.
+     *
+     * @since 1.0.0
+     *
+     * @param ReportRepository $reports Report persistence layer.
+     * @param Logger           $logger  Sanitized error logging.
+     */
     public function __construct(ReportRepository $reports, Logger $logger)
     {
         $this->reports = $reports;
@@ -29,6 +40,13 @@ final class CopywriterHandler
 
     /**
      * Generate an AI product description from competitor analysis.
+     *
+     * Reads the report and product data, invokes the CopywriterAgent,
+     * sanitises the HTML output, and returns it as JSON.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
      */
     public function handleGenerateCopy(): void
     {
@@ -81,6 +99,12 @@ final class CopywriterHandler
 
     /**
      * Verify nonce and capabilities.
+     *
+     * Terminates with a 403 JSON error if verification fails.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     private function verifyRequest(): void
     {

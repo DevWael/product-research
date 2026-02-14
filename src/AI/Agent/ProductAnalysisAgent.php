@@ -17,13 +17,23 @@ use ProductResearch\Security\Encryption;
 /**
  * AI agent for extracting structured product data from competitor content.
  *
- * Supports multiple AI providers: Z.AI (OpenAI-compatible), Anthropic Claude, and Google Gemini.
- * Provider selection is controlled by the `pr_ai_provider` option.
+ * Supports multiple AI providers: Z.AI (OpenAI-compatible), Anthropic Claude,
+ * and Google Gemini. Provider selection is controlled by the `pr_ai_provider`
+ * WordPress option.
+ *
+ * @package ProductResearch\AI\Agent
+ * @since   1.0.0
  */
 final class ProductAnalysisAgent extends Agent
 {
     /**
-     * Configure the AI provider based on settings.
+     * Configure the AI provider based on the `pr_ai_provider` option.
+     *
+     * Routes to the appropriate provider factory method (Z.AI, Anthropic, or Gemini).
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface Configured provider instance.
      */
     protected function provider(): AIProviderInterface
     {
@@ -38,6 +48,13 @@ final class ProductAnalysisAgent extends Agent
 
     /**
      * Create the Z.AI (OpenAI-compatible) provider.
+     *
+     * Uses the `pr_zai_api_key`, `pr_zai_model`, and `pr_zai_endpoint`
+     * options. Temperature is set low (0.1) for deterministic extraction.
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface
      */
     private function createZaiProvider(): AIProviderInterface
     {
@@ -60,6 +77,13 @@ final class ProductAnalysisAgent extends Agent
 
     /**
      * Create the Anthropic Claude provider.
+     *
+     * Uses the `pr_anthropic_api_key` and `pr_anthropic_model` options.
+     * Temperature is set low (0.1) for deterministic extraction.
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface
      */
     private function createAnthropicProvider(): AIProviderInterface
     {
@@ -81,6 +105,14 @@ final class ProductAnalysisAgent extends Agent
 
     /**
      * Create the Google Gemini provider.
+     *
+     * Uses the `pr_gemini_api_key` and `pr_gemini_model` options.
+     * Instantiates {@see GeminiCompat} which handles limited models
+     * (e.g. Gemma) that lack system_instruction support.
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface
      */
     private function createGeminiProvider(): AIProviderInterface
     {
@@ -103,6 +135,14 @@ final class ProductAnalysisAgent extends Agent
 
     /**
      * System prompt with anti-injection guardrails.
+     *
+     * Instructs the LLM to extract factual product data from cleaned
+     * text content, including pricing, variations, availability, and
+     * features. Explicitly rejects prompt injection attempts.
+     *
+     * @since 1.0.0
+     *
+     * @return string The full system prompt text.
      */
     public function instructions(): string
     {
@@ -131,6 +171,13 @@ final class ProductAnalysisAgent extends Agent
 
     /**
      * Default structured output class for this agent.
+     *
+     * Neuron AI uses the returned FQCN to generate a JSON schema,
+     * validate the LLM response, and hydrate a typed object.
+     *
+     * @since 1.0.0
+     *
+     * @return string Fully-qualified class name of {@see CompetitorProfile}.
      */
     public function outputClass(): string
     {

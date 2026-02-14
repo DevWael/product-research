@@ -9,11 +9,21 @@ namespace ProductResearch\API;
  *
  * Strips non-product content, extracts relevant sections,
  * and truncates to token budget to manage costs and context limits.
+ *
+ * @package ProductResearch\API
+ * @since   1.0.0
  */
 final class ContentSanitizer
 {
     private int $defaultTokenBudget;
 
+    /**
+     * Create the sanitizer.
+     *
+     * @since 1.0.0
+     *
+     * @param int $defaultTokenBudget Approximate token ceiling (~4 chars/token).
+     */
     public function __construct(int $defaultTokenBudget = 4000)
     {
         $this->defaultTokenBudget = $defaultTokenBudget;
@@ -21,6 +31,12 @@ final class ContentSanitizer
 
     /**
      * Full sanitization pipeline: clean → extract → truncate.
+     *
+     * @since 1.0.0
+     *
+     * @param  string   $rawContent  Raw HTML or text from a competitor page.
+     * @param  int|null $tokenBudget Optional token budget override.
+     * @return string   Cleaned, relevant, token-limited text.
      */
     public function sanitize(string $rawContent, ?int $tokenBudget = null): string
     {
@@ -35,6 +51,11 @@ final class ContentSanitizer
 
     /**
      * Estimate token count (rough ~4 chars per token).
+     *
+     * @since 1.0.0
+     *
+     * @param  string $text Input text.
+     * @return int    Estimated token count.
      */
     public function estimateTokens(string $text): int
     {
@@ -43,6 +64,11 @@ final class ContentSanitizer
 
     /**
      * Strip scripts, styles, nav, footer, and HTML tags.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $html Raw HTML content.
+     * @return string Plain text with non-content elements removed.
      */
     private function stripNonContent(string $html): string
     {
@@ -69,7 +95,13 @@ final class ContentSanitizer
      * Extract product-relevant sections via keyword heuristics.
      *
      * Looks for text blocks containing pricing, variation,
-     * description, and feature keywords.
+     * description, and feature keywords. Returns surrounding context
+     * lines for each match.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $text Stripped plain text.
+     * @return string Relevant lines joined with newlines.
      */
     public function extractProductSections(string $text): string
     {
@@ -112,7 +144,11 @@ final class ContentSanitizer
     /**
      * Check if a line contains any of the given keywords.
      *
-     * @param array<string> $keywords
+     * @since 1.0.0
+     *
+     * @param  string          $line     Text line to check.
+     * @param  array<string>   $keywords Keywords to search for (case-insensitive).
+     * @return bool
      */
     private function lineContainsKeywords(string $line, array $keywords): bool
     {
@@ -129,6 +165,13 @@ final class ContentSanitizer
 
     /**
      * Normalize excessive whitespace.
+     *
+     * Collapses multiple blank lines and spaces to single instances.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $text Input text.
+     * @return string Normalized text.
      */
     private function normalizeWhitespace(string $text): string
     {
@@ -143,6 +186,12 @@ final class ContentSanitizer
 
     /**
      * Truncate text to fit within token budget.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $text        Input text.
+     * @param  int    $tokenBudget Maximum token count.
+     * @return string Truncated text (or original if within budget).
      */
     private function truncateToTokenBudget(string $text, int $tokenBudget): string
     {

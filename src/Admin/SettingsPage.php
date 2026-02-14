@@ -11,6 +11,9 @@ use ProductResearch\Security\Encryption;
  *
  * Manages API keys (encrypted), search/analysis configuration,
  * security controls (capability, cooldown, credit budget).
+ *
+ * @package ProductResearch\Admin
+ * @since   1.0.0
  */
 final class SettingsPage
 {
@@ -22,6 +25,13 @@ final class SettingsPage
 
     private Encryption $encryption;
 
+    /**
+     * Create the settings page.
+     *
+     * @since 1.0.0
+     *
+     * @param Encryption $encryption AES-256 encryption for API key storage.
+     */
     public function __construct(Encryption $encryption)
     {
         $this->encryption = $encryption;
@@ -29,6 +39,10 @@ final class SettingsPage
 
     /**
      * Register the settings submenu page under WooCommerce.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     public function registerMenu(): void
     {
@@ -44,6 +58,12 @@ final class SettingsPage
 
     /**
      * Register all settings fields.
+     *
+     * Delegates to per-section registration methods.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     public function registerSettings(): void
     {
@@ -54,6 +74,13 @@ final class SettingsPage
 
     /**
      * Render the settings page HTML.
+     *
+     * Outputs the form, settings fields, and inline JS for
+     * toggling provider-specific rows.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     public function renderPage(): void
     {
@@ -97,6 +124,10 @@ final class SettingsPage
 
     /**
      * Register API Keys section.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     private function registerApiSection(): void
     {
@@ -142,6 +173,10 @@ final class SettingsPage
 
     /**
      * Register Search & Analysis Configuration section.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     private function registerConfigSection(): void
     {
@@ -181,6 +216,10 @@ final class SettingsPage
 
     /**
      * Register Security section.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     private function registerSecuritySection(): void
     {
@@ -202,6 +241,17 @@ final class SettingsPage
 
     /**
      * Add an encrypted password field.
+     *
+     * Registers a setting with a custom sanitize callback that
+     * encrypts the value before storage.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $id       Option name / HTML id.
+     * @param  string $label    Field label.
+     * @param  string $section  Settings section slug.
+     * @param  string $rowClass Optional CSS class for the row (provider toggle).
+     * @return void
      */
     private function addEncryptedField(string $id, string $label, string $section, string $rowClass = ''): void
     {
@@ -229,7 +279,14 @@ final class SettingsPage
 
     /**
      * Sanitize and encrypt API key fields.
+     *
      * Keeps existing value if blank submitted.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $id    Option name.
+     * @param  mixed  $value Submitted value.
+     * @return string Encrypted API key or existing value.
      */
     private function sanitizeEncryptedField(string $id, mixed $value): string
     {
@@ -244,6 +301,15 @@ final class SettingsPage
 
     /**
      * Add a text field.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $id       Option name / HTML id.
+     * @param  string $label    Field label.
+     * @param  string $section  Settings section slug.
+     * @param  string $default  Default value.
+     * @param  string $rowClass Optional CSS class for the row.
+     * @return void
      */
     private function addTextField(string $id, string $label, string $section, string $default = '', string $rowClass = ''): void
     {
@@ -267,7 +333,14 @@ final class SettingsPage
     /**
      * Add a select field.
      *
-     * @param array<string, string> $options
+     * @since 1.0.0
+     *
+     * @param  string                 $id      Option name / HTML id.
+     * @param  string                 $label   Field label.
+     * @param  string                 $section Settings section slug.
+     * @param  array<string, string>  $options Value => display-text map.
+     * @param  string                 $default Default value.
+     * @return void
      */
     private function addSelectField(string $id, string $label, string $section, array $options, string $default): void
     {
@@ -294,6 +367,16 @@ final class SettingsPage
 
     /**
      * Add a number field.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $id      Option name / HTML id.
+     * @param  string $label   Field label.
+     * @param  string $section Settings section slug.
+     * @param  int    $default Default value.
+     * @param  int    $min     Minimum allowed value.
+     * @param  int    $max     Maximum allowed value.
+     * @return void
      */
     private function addNumberField(string $id, string $label, string $section, int $default, int $min, int $max): void
     {
@@ -316,6 +399,14 @@ final class SettingsPage
 
     /**
      * Add a checkbox field.
+     *
+     * @since 1.0.0
+     *
+     * @param  string $id      Option name / HTML id.
+     * @param  string $label   Field label.
+     * @param  string $section Settings section slug.
+     * @param  bool   $default Default checked state.
+     * @return void
      */
     private function addCheckboxField(string $id, string $label, string $section, bool $default): void
     {
@@ -337,6 +428,14 @@ final class SettingsPage
 
     /**
      * Add a textarea field (one value per line, e.g. domain list).
+     *
+     * @since 1.0.0
+     *
+     * @param  string $id      Option name / HTML id.
+     * @param  string $label   Field label.
+     * @param  string $section Settings section slug.
+     * @param  string $default Default value.
+     * @return void
      */
     private function addTextareaField(string $id, string $label, string $section, string $default = ''): void
     {
@@ -367,6 +466,12 @@ final class SettingsPage
 
     /**
      * Get the required capability for accessing settings and running analysis.
+     *
+     * Value is filterable via the `pr_required_capability` filter.
+     *
+     * @since 1.0.0
+     *
+     * @return string WordPress capability slug.
      */
     private function getRequiredCapability(): string
     {

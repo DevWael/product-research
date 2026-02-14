@@ -27,6 +27,9 @@ use ProductResearch\Security\Logger;
  * Uses direct service calls instead of the Neuron Workflow engine
  * since we need an HTTP request/response boundary between
  * search (preview) and extract+analyze steps.
+ *
+ * @package ProductResearch\Ajax
+ * @since   1.0.0
  */
 final class ResearchHandler
 {
@@ -37,6 +40,18 @@ final class ResearchHandler
     private Logger $logger;
     private CurrencyConverter $converter;
 
+    /**
+     * Create the research handler with all required services.
+     *
+     * @since 1.0.0
+     *
+     * @param TavilyClient      $tavily    Tavily API client for search and extraction.
+     * @param ContentSanitizer  $sanitizer HTML/text sanitizer for extracted content.
+     * @param ReportRepository  $reports   Report persistence layer.
+     * @param CacheManager      $cache     Transient-based cache service.
+     * @param Logger            $logger    Sanitized error logging.
+     * @param CurrencyConverter $converter Currency normalisation service.
+     */
     public function __construct(
         TavilyClient $tavily,
         ContentSanitizer $sanitizer,
@@ -55,6 +70,13 @@ final class ResearchHandler
 
     /**
      * Step 1: Run Tavily search and return URL preview for user confirmation.
+     *
+     * Enforces concurrent lock, per-product cooldown, and daily credit budget
+     * before executing the search. Merges bookmarked URLs into results.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
      */
     public function handleStartResearch(): void
     {
@@ -182,6 +204,10 @@ final class ResearchHandler
      *
      * Returns immediately after extraction so the frontend can
      * drive per-URL AI analysis without hitting PHP timeout.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
      */
     public function handleConfirmUrls(): void
     {
@@ -295,6 +321,10 @@ final class ResearchHandler
      *
      * Called by the frontend in a loop — one call per extracted URL.
      * Each call processes one item and stays within PHP's 30s limit.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
      */
     public function handleAnalyzeUrl(): void
     {
@@ -427,6 +457,13 @@ final class ResearchHandler
 
     /**
      * Step 4: Finalize the report after all URLs have been analyzed.
+     *
+     * Normalises currencies, builds summary statistics, stores price
+     * history, and optionally generates AI recommendations.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
      */
     public function handleFinalizeReport(): void
     {
@@ -548,6 +585,12 @@ final class ResearchHandler
 
     /**
      * Cancel an in-progress report.
+     *
+     * Only non-terminal reports can be cancelled.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
      */
     public function handleCancelReport(): void
     {
@@ -585,6 +628,10 @@ final class ResearchHandler
 
     /**
      * Get current report status for polling.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
      */
     public function handleGetStatus(): void
     {
@@ -606,6 +653,12 @@ final class ResearchHandler
 
     /**
      * Get completed report data.
+     *
+     * Includes recommendations and price history in the response.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
      */
     public function handleGetReport(): void
     {
@@ -636,6 +689,13 @@ final class ResearchHandler
 
     /**
      * Generate on-demand AI recommendations for a completed report.
+     *
+     * Returns cached recommendations when available; otherwise invokes
+     * the RecommendationAgent and persists the result.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
      */
     public function handleGetRecommendations(): void
     {
@@ -686,6 +746,14 @@ final class ResearchHandler
 
     /**
      * Build a search query from product data.
+     *
+     * Combines product name, category, brand, SKU, and tags
+     * into a Tavily-optimised search string.
+     *
+     * @since 1.0.0
+     *
+     * @param  \WC_Product $product WooCommerce product instance.
+     * @return string Constructed search query.
      */
     private function buildSearchQuery(\WC_Product $product): string
     {
@@ -730,6 +798,12 @@ final class ResearchHandler
 
     /**
      * Verify nonce and capability.
+     *
+     * Terminates with a 403 JSON error if verification fails.
+     *
+     * @since 1.0.0
+     *
+     * @return void
      */
     private function verifyRequest(): void
     {
@@ -746,6 +820,12 @@ final class ResearchHandler
 
     /**
      * Get and validate product ID from request.
+     *
+     * Terminates with a 400 JSON error if invalid.
+     *
+     * @since 1.0.0
+     *
+     * @return int Validated product post ID.
      */
     private function getProductId(): int
     {
@@ -760,6 +840,12 @@ final class ResearchHandler
 
     /**
      * Get and validate report ID from request.
+     *
+     * Terminates with a 400 JSON error if invalid.
+     *
+     * @since 1.0.0
+     *
+     * @return int Validated report post ID.
      */
     private function getReportId(): int
     {
@@ -775,7 +861,11 @@ final class ResearchHandler
     /**
      * Get selected URLs from request.
      *
-     * @return array<string>
+     * Handles both array and JSON-encoded string inputs.
+     *
+     * @since 1.0.0
+     *
+     * @return array<string> Sanitised URL list.
      */
     private function getSelectedUrls(): array
     {
@@ -805,6 +895,11 @@ final class ResearchHandler
 
     /**
      * Check per-product cooldown.
+     *
+     * @since 1.0.0
+     *
+     * @param  int  $productId WooCommerce product post ID.
+     * @return bool True if cooldown has elapsed or is bypassed.
      */
     private function checkCooldown(int $productId): bool
     {
@@ -828,6 +923,10 @@ final class ResearchHandler
 
     /**
      * Check daily credit budget.
+     *
+     * @since 1.0.0
+     *
+     * @return bool True if budget is not exceeded or is unlimited.
      */
     private function checkCreditBudget(): bool
     {
@@ -843,9 +942,14 @@ final class ResearchHandler
     /**
      * Determine price position relative to competitor prices.
      *
-     * @param float $productPrice Our product's price.
-     * @param float[] $competitorPrices Array of competitor prices.
-     * @return string 'below', 'at', or 'above'
+     * Returns 'below' when the product is ≤90% of the average,
+     * 'above' when ≥110%, and 'at' otherwise.
+     *
+     * @since 1.0.0
+     *
+     * @param  float   $productPrice    Our product's price.
+     * @param  float[] $competitorPrices Array of competitor prices.
+     * @return string  'below', 'at', or 'above'.
      */
     private function calculatePricePosition(float $productPrice, array $competitorPrices): string
     {
@@ -866,6 +970,117 @@ final class ResearchHandler
         return 'at';
     }
 
+    /**
+     * Delete a completed or failed report.
+     *
+     * Returns the updated history list so the frontend can re-render.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
+     */
+    public function handleDeleteReport(): void
+    {
+        $this->verifyRequest();
+
+        $reportId = $this->getReportId();
+        $report   = $this->reports->findById($reportId);
+
+        if ($report === null) {
+            wp_send_json_error(['message' => __('Report not found.', 'product-research')], 404);
+        }
+
+        // Prevent deleting in-progress reports.
+        $terminalStatuses = [ReportPostType::STATUS_COMPLETE, ReportPostType::STATUS_FAILED];
+        if (! in_array($report['status'], $terminalStatuses, true)) {
+            wp_send_json_error([
+                'message' => __('Cannot delete a report that is still in progress.', 'product-research'),
+            ], 400);
+        }
+
+        $productId = $report['product_id'];
+
+        if (! $this->reports->delete($reportId)) {
+            wp_send_json_error([
+                'message' => __('Failed to delete report.', 'product-research'),
+            ], 500);
+        }
+
+        $this->logger->log(sprintf('Report %d deleted by user.', $reportId));
+
+        // Return updated history so the frontend can rebuild.
+        $history = $this->reports->findByProduct($productId, 20);
+
+        wp_send_json_success([
+            'deleted'   => $reportId,
+            'history'   => $history,
+        ]);
+    }
+
+    /**
+     * Bulk-delete multiple completed/failed reports.
+     *
+     * Accepts an array of report IDs via POST['report_ids'].
+     * Skips non-terminal and invalid reports silently.
+     *
+     * @since 1.0.0
+     *
+     * @return void Sends JSON response and exits.
+     */
+    public function handleDeleteReports(): void
+    {
+        $this->verifyRequest();
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- verified in verifyRequest()
+        $raw = isset($_POST['report_ids']) ? wp_unslash($_POST['report_ids']) : [];
+        $ids = is_array($raw) ? array_map('absint', $raw) : [];
+        $ids = array_filter($ids);
+
+        if (empty($ids)) {
+            wp_send_json_error(['message' => __('No reports selected.', 'product-research')], 400);
+        }
+
+        $terminalStatuses = [ReportPostType::STATUS_COMPLETE, ReportPostType::STATUS_FAILED];
+        $deleted   = [];
+        $productId = 0;
+
+        foreach ($ids as $id) {
+            $report = $this->reports->findById($id);
+            if ($report === null) {
+                continue;
+            }
+            if (! in_array($report['status'], $terminalStatuses, true)) {
+                continue;
+            }
+            if ($productId === 0) {
+                $productId = $report['product_id'];
+            }
+            if ($this->reports->delete($id)) {
+                $deleted[] = $id;
+            }
+        }
+
+        $this->logger->log(sprintf('Bulk-deleted %d reports: [%s]', count($deleted), implode(', ', $deleted)));
+
+        $history = $productId > 0 ? $this->reports->findByProduct($productId, 20) : [];
+
+        wp_send_json_success([
+            'deleted' => $deleted,
+            'history' => $history,
+        ]);
+    }
+
+    /**
+     * Build human-readable key findings from competitor profiles.
+     *
+     * Summarises price range, conversion warnings, discounts,
+     * and product variations into translatable strings.
+     *
+     * @since 1.0.0
+     *
+     * @param  array<int, array<string, mixed>> $profiles Analysed competitor profiles.
+     * @return array<int, string> List of finding sentences.
+     */
     private function buildKeyFindings(array $profiles): array
     {
         $findings = [];

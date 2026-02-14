@@ -11,12 +11,19 @@ namespace ProductResearch\Currency;
  * at report finalization time. Caches exchange rates via WordPress
  * transients (24h TTL) with a merge strategy to preserve rates
  * from concurrent requests.
+ *
+ * @package ProductResearch\Currency
+ * @since   1.0.0
  */
 final class CurrencyConverter
 {
     private string $storeCurrency;
 
     /**
+     * Create the converter.
+     *
+     * @since 1.0.0
+     *
      * @param string $storeCurrency ISO 4217 store currency code (e.g. 'USD').
      */
     public function __construct(string $storeCurrency)
@@ -26,6 +33,10 @@ final class CurrencyConverter
 
     /**
      * Return the injected store currency.
+     *
+     * @since 1.0.0
+     *
+     * @return string ISO 4217 currency code.
      */
     public function getStoreCurrency(): string
     {
@@ -38,7 +49,9 @@ final class CurrencyConverter
      * Filters out profiles with failed conversion status and zero/null prices.
      * Use this instead of duplicating the filter logic inline.
      *
-     * @param array[] $profiles Array of competitor profile arrays.
+     * @since 1.0.0
+     *
+     * @param  array[] $profiles Array of competitor profile arrays.
      * @return float[] Filtered positive prices.
      */
     public static function extractValidPricesFromArrays(array $profiles): array
@@ -55,7 +68,9 @@ final class CurrencyConverter
     /**
      * Extract valid converted prices from CompetitorProfile objects.
      *
-     * @param object[] $profiles Array of CompetitorProfile objects.
+     * @since 1.0.0
+     *
+     * @param  object[] $profiles Array of CompetitorProfile objects.
      * @return float[] Filtered positive prices.
      */
     public static function extractValidPricesFromObjects(array $profiles): array
@@ -78,9 +93,11 @@ final class CurrencyConverter
      * Results are merged into the existing transient cache so that
      * concurrent report finalizations don't overwrite each other's data.
      *
-     * @param string   $from         Base currency ISO code.
-     * @param string[] $toCurrencies Target currency ISO codes.
-     * @return array<string, float>  Map of currency => rate. Empty on failure.
+     * @since 1.0.0
+     *
+     * @param  string   $from         Base currency ISO code.
+     * @param  string[] $toCurrencies Target currency ISO codes.
+     * @return array<string, float>   Map of currency => rate. Empty on failure.
      */
     public function getRates(string $from, array $toCurrencies): array
     {
@@ -157,8 +174,11 @@ final class CurrencyConverter
      * Sets `converted_price`, `converted_original_price`, `store_currency`,
      * and `conversion_status` on each profile array.
      *
-     * @param array  &$profiles     Array of competitor profile arrays (by reference).
-     * @param string $storeCurrency ISO 4217 store currency code.
+     * @since 1.0.0
+     *
+     * @param  array  &$profiles     Array of competitor profile arrays (by reference).
+     * @param  string $storeCurrency ISO 4217 store currency code.
+     * @return void
      */
     public function normalizeProfiles(array &$profiles, string $storeCurrency): void
     {
@@ -216,8 +236,11 @@ final class CurrencyConverter
      * Same logic as normalizeProfiles() but reads/writes object properties
      * instead of array keys.
      *
-     * @param array  $profiles      Array of CompetitorProfile objects.
-     * @param string $storeCurrency ISO 4217 store currency code.
+     * @since 1.0.0
+     *
+     * @param  array  $profiles      Array of CompetitorProfile objects.
+     * @param  string $storeCurrency ISO 4217 store currency code.
+     * @return void
      */
     public function normalizeProfileObjects(array $profiles, string $storeCurrency): void
     {

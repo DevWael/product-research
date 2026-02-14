@@ -18,12 +18,20 @@ use ProductResearch\Security\Encryption;
  * AI agent for generating strategic recommendations from competitor analysis.
  *
  * Duplicates provider logic from ProductAnalysisAgent (tech-spec acknowledged
- * trade-off: duplication vs. premature abstraction).
+ * trade-off: duplication vs. premature abstraction). Uses moderate temperature
+ * (0.3) for balanced creativity and consistency.
+ *
+ * @package ProductResearch\AI\Agent
+ * @since   1.0.0
  */
 final class RecommendationAgent extends Agent
 {
     /**
-     * Configure the AI provider based on settings.
+     * Configure the AI provider based on the `pr_ai_provider` option.
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface Configured provider instance.
      */
     protected function provider(): AIProviderInterface
     {
@@ -38,6 +46,10 @@ final class RecommendationAgent extends Agent
 
     /**
      * Create the Z.AI (OpenAI-compatible) provider.
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface
      */
     private function createZaiProvider(): AIProviderInterface
     {
@@ -60,6 +72,10 @@ final class RecommendationAgent extends Agent
 
     /**
      * Create the Anthropic Claude provider.
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface
      */
     private function createAnthropicProvider(): AIProviderInterface
     {
@@ -80,7 +96,11 @@ final class RecommendationAgent extends Agent
     }
 
     /**
-     * Create the Google Gemini provider.
+     * Create the Google Gemini provider via {@see GeminiCompat}.
+     *
+     * @since 1.0.0
+     *
+     * @return AIProviderInterface
      */
     private function createGeminiProvider(): AIProviderInterface
     {
@@ -103,6 +123,13 @@ final class RecommendationAgent extends Agent
 
     /**
      * System prompt for strategic recommendations.
+     *
+     * Instructs the LLM to analyze competitor data and generate exactly
+     * 3 actionable recommendations with titles, descriptions, and priority levels.
+     *
+     * @since 1.0.0
+     *
+     * @return string The full system prompt text.
      */
     public function instructions(): string
     {
@@ -129,6 +156,10 @@ final class RecommendationAgent extends Agent
 
     /**
      * Default structured output class for this agent.
+     *
+     * @since 1.0.0
+     *
+     * @return string Fully-qualified class name of {@see RecommendationOutput}.
      */
     public function outputClass(): string
     {
