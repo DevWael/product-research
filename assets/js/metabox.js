@@ -148,8 +148,19 @@
                 this.config.priceHistory = report.price_history;
             }
             const bookmarkedUrls = this.config.bookmarkedUrls || [];
+            const failedUrls = report.failed_urls || [];
 
             let html = `<div class="pr-results">`;
+
+            // Failed URLs notice
+            if (failedUrls.length) {
+                const domains = failedUrls.map(u => { try { return new URL(u).hostname; } catch { return u; } });
+                html += `
+                    <div class="pr-notice pr-notice--warning">
+                        ⚠️ ${failedUrls.length} competitor(s) could not be analyzed: ${domains.map(d => `<strong>${this.esc(d)}</strong>`).join(', ')}
+                    </div>
+                `;
+            }
 
             // Summary Dashboard
             html += `

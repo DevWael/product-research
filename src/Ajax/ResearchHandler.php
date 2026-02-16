@@ -684,6 +684,7 @@ final class ResearchHandler
             'recommendations' => is_array($recommendations) ? $recommendations : [],
             'created'         => $report['created_at'],
             'price_history'   => $priceHistory,
+            'failed_urls'     => $report['error_details']['failed_urls'] ?? [],
         ]);
     }
 

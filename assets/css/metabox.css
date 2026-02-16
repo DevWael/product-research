@@ -1047,6 +1047,12 @@
     border: 1px solid #00a32a;
 }
 
+.pr-notice--warning {
+    background: #fcf9e8;
+    color: #996800;
+    border: 1px solid #dba617;
+}
+
 /* ─── Currency Conversion ──────────────────────────────────── */
 .pr-conversion-warn {
     color: #d63638;
