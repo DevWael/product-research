@@ -1,0 +1,46 @@
+/**
+ * Product Research — Competitor Badge Styles
+ * Displayed on the WooCommerce Products list table.
+ */
+
+.pr-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d2327;
+    white-space: nowrap;
+}
+
+.pr-badge--none {
+    color: #a7aaad;
+    font-weight: 400;
+}
+
+.pr-badge__dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+/* Below average — green (good for the store owner) */
+.pr-badge--below .pr-badge__dot {
+    background: #00a32a;
+}
+
+/* At average — amber */
+.pr-badge--at .pr-badge__dot {
+    background: #dba617;
+}
+
+/* Above average — red (warning) */
+.pr-badge--above .pr-badge__dot {
+    background: #d63638;
+}
+
+/* Unknown position */
+.pr-badge--unknown .pr-badge__dot {
+    background: #a7aaad;
+}
