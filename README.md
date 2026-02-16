@@ -123,4 +123,3 @@ This project is licensed under the [GPL-2.0-or-later](LICENSE) license.
 ## 👤 Author
 
 **Ahmad Wael**
-Website: [bbioon.com](https://www.bbioon.com)
